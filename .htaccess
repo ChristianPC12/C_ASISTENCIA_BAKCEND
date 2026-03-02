@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# Pasar el header Authorization a PHP (Apache lo elimina por defecto en CGI/FastCGI)
+RewriteCond %{HTTP:Authorization} .+
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Redirigir todo al index.php (excepto archivos reales)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Deshabilitar listado de directorios
+Options -Indexes
+
+# Denegar acceso a archivos sensibles
+<FilesMatch "\.(sql|md|gitignore)$">
+    Require all denied
+</FilesMatch>
