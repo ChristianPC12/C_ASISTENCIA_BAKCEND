@@ -32,6 +32,8 @@ final class AuthController
             JsonResponse::send(200, true, 'Inicio de sesion exitoso.', $resultado);
         } catch (InvalidArgumentException $e) {
             JsonResponse::send(400, false, $e->getMessage());
+        } catch (\RuntimeException $e) {
+            JsonResponse::send(401, false, $e->getMessage());
         } catch (\Throwable $e) {
             error_log('[AuthController::login] ' . $e->getMessage());
             JsonResponse::send(500, false, 'Error interno del servidor.');
