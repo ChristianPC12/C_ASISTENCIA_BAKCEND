@@ -57,15 +57,12 @@ final class AsistenciaExportService
             ''
         ];
 
-        foreach ($this->construirFilas($registro, true, true) as [$campo, $valor]) {
+        foreach ($this->construirFilas($registro, false, false) as [$campo, $valor]) {
             $texto = $campo . ': ' . ($valor === '' ? '-' : $valor);
             foreach ($this->envolverLinea($texto, 96) as $subLinea) {
                 $lineas[] = $subLinea;
             }
         }
-
-        $lineas[] = '';
-        $lineas[] = 'Generado: ' . date('Y-m-d H:i:s');
 
         $y = 800;
         $contenido = "BT\n/F1 10 Tf\n";
@@ -85,7 +82,7 @@ final class AsistenciaExportService
         $o2 = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
         $o3 = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
             . "/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n";
-        $o4 = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+        $o4 = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n";
         $o5 = "5 0 obj\n<< /Length {$len} >>\nstream\n{$contenido}\nendstream\nendobj\n";
 
         $pdf = "%PDF-1.4\n";
