@@ -20,6 +20,7 @@ final class AsistenciaRoutes
     {
         // Patron para item: /asistencias/{id}
         $itemPattern = '#^/asistencias/(\d+)$#';
+        $exportPattern = '#^/asistencias/(\d+)/exportar/(excel|pdf)$#';
 
         // GET /asistencias (lista con filtros)
         if ($method === 'GET' && $uri === '/asistencias') {
@@ -34,6 +35,18 @@ final class AsistenciaRoutes
             AuthMiddleware::handle();
             $controller = new AsistenciaController();
             $controller->obtener((int) $matches[1]);
+            return true;
+        }
+
+        // GET /asistencias/{id}/exportar/{excel|pdf}
+        if ($method === 'GET' && preg_match($exportPattern, $uri, $matches)) {
+            AuthMiddleware::handle();
+            $controller = new AsistenciaController();
+            if ($matches[2] === 'excel') {
+                $controller->exportarExcel((int) $matches[1]);
+            } else {
+                $controller->exportarPdf((int) $matches[1]);
+            }
             return true;
         }
 

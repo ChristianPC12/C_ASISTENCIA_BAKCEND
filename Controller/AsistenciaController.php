@@ -10,15 +10,18 @@ final class AsistenciaController
 {
     /** @var AsistenciaService */
     private AsistenciaService $asistenciaService;
+    /** @var AsistenciaExportService */
+    private AsistenciaExportService $asistenciaExportService;
 
     public function __construct()
     {
         $this->asistenciaService = new AsistenciaService();
+        $this->asistenciaExportService = new AsistenciaExportService();
     }
 
     /**
      * GET /asistencias
-     * Soporta filtros por query string: culto, anio, trimestre.
+     * Soporta filtros por query string: culto, anio, trimestre, mes.
      *
      * @return void
      */
@@ -29,7 +32,8 @@ final class AsistenciaController
                 'culto'     => $_GET['culto'] ?? null,
                 'culto_id'  => $_GET['culto_id'] ?? null,
                 'anio'      => $_GET['anio'] ?? null,
-                'trimestre' => $_GET['trimestre'] ?? null
+                'trimestre' => $_GET['trimestre'] ?? null,
+                'mes'       => $_GET['mes'] ?? null
             ];
 
             $resultado = $this->asistenciaService->listar($filtros);
@@ -127,5 +131,61 @@ final class AsistenciaController
             error_log('[AsistenciaController::eliminar] ' . $e->getMessage());
             JsonResponse::send(500, false, 'Error interno del servidor.');
         }
+    }
+
+    /**
+     * GET /asistencias/{id}/exportar/excel
+     *
+     * @param int $id ID del registro.
+     * @return void
+     */
+    public function exportarExcel(int $id): void
+    {
+        try {
+            $registro = $this->asistenciaService->obtenerPorId($id);
+            $contenido = $this->asistenciaExportService->generarExcel($registro);
+            $filename = $this->nombreArchivo((int) $registro['id'], (string) $registro['fecha'], 'xls');
+
+            header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            echo $contenido;
+        } catch (RuntimeException $e) {
+            JsonResponse::send(404, false, $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AsistenciaController::exportarExcel] ' . $e->getMessage());
+            JsonResponse::send(500, false, 'Error interno del servidor.');
+        }
+    }
+
+    /**
+     * GET /asistencias/{id}/exportar/pdf
+     *
+     * @param int $id ID del registro.
+     * @return void
+     */
+    public function exportarPdf(int $id): void
+    {
+        try {
+            $registro = $this->asistenciaService->obtenerPorId($id);
+            $contenido = $this->asistenciaExportService->generarPdf($registro);
+            $filename = $this->nombreArchivo((int) $registro['id'], (string) $registro['fecha'], 'pdf');
+
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            echo $contenido;
+        } catch (RuntimeException $e) {
+            JsonResponse::send(404, false, $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AsistenciaController::exportarPdf] ' . $e->getMessage());
+            JsonResponse::send(500, false, 'Error interno del servidor.');
+        }
+    }
+
+    private function nombreArchivo(int $id, string $fecha, string $ext): string
+    {
+        $fechaSegura = preg_replace('/[^0-9\-]/', '', $fecha) ?: 'sin-fecha';
+        return "asistencia_{$id}_{$fechaSegura}.{$ext}";
     }
 }

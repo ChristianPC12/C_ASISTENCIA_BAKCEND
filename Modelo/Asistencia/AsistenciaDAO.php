@@ -58,7 +58,7 @@ final class AsistenciaDAO
     /**
      * Lista registros de asistencia con filtros opcionales.
      *
-     * @param array<string, mixed> $filtros Filtros: culto_id, anio, trimestre.
+     * @param array<string, mixed> $filtros Filtros: culto_id, anio, trimestre, mes.
      * @return AsistenciaDTO[]
      */
     public function findAll(array $filtros = []): array
@@ -80,6 +80,11 @@ final class AsistenciaDAO
         if (!empty($filtros['trimestre'])) {
             $where[]               = "ar.trimestre = :trimestre";
             $params[':trimestre']  = (int) $filtros['trimestre'];
+        }
+
+        if (!empty($filtros['mes'])) {
+            $where[]         = "MONTH(ar.fecha) = :mes";
+            $params[':mes']  = (int) $filtros['mes'];
         }
 
         if (!empty($where)) {

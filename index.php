@@ -65,6 +65,7 @@ require_once __DIR__ . '/Services/AuthService.php';
 require_once __DIR__ . '/Services/CultoService.php';
 require_once __DIR__ . '/Services/UsuarioService.php';
 require_once __DIR__ . '/Services/AsistenciaService.php';
+require_once __DIR__ . '/Services/AsistenciaExportService.php';
 
 // ============================================================
 // 7) Controllers
