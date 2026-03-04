@@ -144,7 +144,7 @@ final class AsistenciaController
         try {
             $registro = $this->asistenciaService->obtenerPorId($id);
             $contenido = $this->asistenciaExportService->generarExcel($registro);
-            $filename = $this->nombreArchivo((int) $registro['id'], (string) $registro['fecha'], 'xls');
+            $filename = $this->nombreArchivo((string) $registro['fecha'], 'xls');
 
             header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -169,7 +169,7 @@ final class AsistenciaController
         try {
             $registro = $this->asistenciaService->obtenerPorId($id);
             $contenido = $this->asistenciaExportService->generarPdf($registro);
-            $filename = $this->nombreArchivo((int) $registro['id'], (string) $registro['fecha'], 'pdf');
+            $filename = $this->nombreArchivo((string) $registro['fecha'], 'pdf');
 
             header('Content-Type: application/pdf');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -183,9 +183,9 @@ final class AsistenciaController
         }
     }
 
-    private function nombreArchivo(int $id, string $fecha, string $ext): string
+    private function nombreArchivo(string $fecha, string $ext): string
     {
         $fechaSegura = preg_replace('/[^0-9\-]/', '', $fecha) ?: 'sin-fecha';
-        return "asistencia_{$id}_{$fechaSegura}.{$ext}";
+        return "asistencia_{$fechaSegura}.{$ext}";
     }
 }

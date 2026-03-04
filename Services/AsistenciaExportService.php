@@ -16,32 +16,7 @@ final class AsistenciaExportService
     {
         $titulo = 'Registro de Asistencia - ' . ($registro['culto_nombre'] ?? 'Culto');
         $fecha  = (string) ($registro['fecha'] ?? '');
-
-        $filas = [
-            ['ID Registro', (string) ($registro['id'] ?? '')],
-            ['Culto', (string) ($registro['culto_nombre'] ?? $registro['culto_codigo'] ?? '')],
-            ['Codigo Culto', (string) ($registro['culto_codigo'] ?? '')],
-            ['Fecha', $fecha],
-            ['Anio', (string) ($registro['anio'] ?? '')],
-            ['Trimestre', (string) ($registro['trimestre'] ?? '')],
-            ['Llegaron antes de la hora', (string) ($registro['llegaron_antes_hora'] ?? '0')],
-            ['Llegaron despues de la hora', (string) ($registro['llegaron_despues_hora'] ?? '0')],
-            ['Ninos', (string) ($registro['ninos'] ?? '0')],
-            ['Jovenes', (string) ($registro['jovenes'] ?? '0')],
-            ['Total asistentes', (string) ($registro['total_asistentes'] ?? '0')],
-            ['Procedentes del barrio', (string) ($registro['proc_barrio'] ?? '0')],
-            ['Procedentes de Guayabo', (string) ($registro['proc_guayabo'] ?? '0')],
-            ['Visitas del barrio', (string) ($registro['visitas_barrio'] ?? '0')],
-            ['Nombres visitas barrio', (string) ($registro['nombres_visitas_barrio'] ?? '')],
-            ['Visitas de Guayabo', (string) ($registro['visitas_guayabo'] ?? '0')],
-            ['Nombres visitas Guayabo', (string) ($registro['nombres_visitas_guayabo'] ?? '')],
-            ['Retiros antes de terminar', (string) ($registro['retiros_antes_terminar'] ?? '0')],
-            ['Se quedaron todo', (string) ($registro['se_quedaron_todo'] ?? '0')],
-            ['Observaciones', (string) ($registro['observaciones'] ?? '')],
-            ['Registrado por', (string) ($registro['registrado_por_nombre'] ?? '')],
-            ['Creado en', (string) ($registro['creado_en'] ?? '')],
-            ['Actualizado en', (string) ($registro['actualizado_en'] ?? '')]
-        ];
+        $filas = $this->construirFilas($registro, false, false);
 
         $rowsHtml = '';
         foreach ($filas as [$campo, $valor]) {
@@ -68,7 +43,7 @@ final class AsistenciaExportService
     }
 
     /**
-     * Genera un PDF simple de una pagina con los datos del registro.
+     * Genera un PDF de una pagina con el detalle campo por campo del registro.
      *
      * @param array<string, mixed> $registro
      * @return string
@@ -77,31 +52,28 @@ final class AsistenciaExportService
     {
         $lineas = [
             'Registro de Asistencia',
-            'ID: ' . (string) ($registro['id'] ?? ''),
             'Culto: ' . (string) ($registro['culto_nombre'] ?? $registro['culto_codigo'] ?? ''),
-            'Fecha: ' . (string) ($registro['fecha'] ?? ''),
-            'Total asistentes: ' . (string) ($registro['total_asistentes'] ?? '0'),
-            'Ninos: ' . (string) ($registro['ninos'] ?? '0'),
-            'Jovenes: ' . (string) ($registro['jovenes'] ?? '0'),
-            'Antes: ' . (string) ($registro['llegaron_antes_hora'] ?? '0')
-                . ' | Despues: ' . (string) ($registro['llegaron_despues_hora'] ?? '0'),
-            'Procedentes Barrio/Guayabo: ' . (string) ($registro['proc_barrio'] ?? '0')
-                . ' / ' . (string) ($registro['proc_guayabo'] ?? '0'),
-            'Visitas Barrio/Guayabo: ' . (string) ($registro['visitas_barrio'] ?? '0')
-                . ' / ' . (string) ($registro['visitas_guayabo'] ?? '0'),
-            'Retiros: ' . (string) ($registro['retiros_antes_terminar'] ?? '0')
-                . ' | Se quedaron: ' . (string) ($registro['se_quedaron_todo'] ?? '0'),
-            'Registrado por: ' . (string) ($registro['registrado_por_nombre'] ?? ''),
-            'Observaciones: ' . (string) ($registro['observaciones'] ?? '')
+            'Fecha del registro: ' . (string) ($registro['fecha'] ?? ''),
+            ''
         ];
 
+        foreach ($this->construirFilas($registro, true, true) as [$campo, $valor]) {
+            $texto = $campo . ': ' . ($valor === '' ? '-' : $valor);
+            foreach ($this->envolverLinea($texto, 96) as $subLinea) {
+                $lineas[] = $subLinea;
+            }
+        }
+
+        $lineas[] = '';
+        $lineas[] = 'Generado: ' . date('Y-m-d H:i:s');
+
         $y = 800;
-        $contenido = "BT\n/F1 11 Tf\n";
+        $contenido = "BT\n/F1 10 Tf\n";
         foreach ($lineas as $linea) {
-            $texto = $this->escaparPdf($linea);
-            $contenido .= "1 0 0 1 50 {$y} Tm\n({$texto}) Tj\n";
-            $y -= 18;
-            if ($y < 60) {
+            $texto = $this->escaparPdf($this->aWinAnsi($linea));
+            $contenido .= "1 0 0 1 45 {$y} Tm\n({$texto}) Tj\n";
+            $y -= 15;
+            if ($y < 50) {
                 break;
             }
         }
@@ -140,6 +112,79 @@ final class AsistenciaExportService
         $pdf .= "startxref\n{$xref}\n%%EOF";
 
         return $pdf;
+    }
+
+    /**
+     * @param array<string, mixed> $registro
+     * @return array<int, array{0:string,1:string}>
+     */
+    private function construirFilas(array $registro, bool $incluirId, bool $incluirActualizado): array
+    {
+        $filas = [];
+
+        if ($incluirId) {
+            $filas[] = ['ID del registro', (string) ($registro['id'] ?? '')];
+        }
+
+        $filas = array_merge($filas, [
+            ['Culto', (string) ($registro['culto_nombre'] ?? $registro['culto_codigo'] ?? '')],
+            ['Código del culto', (string) ($registro['culto_codigo'] ?? '')],
+            ['Fecha', (string) ($registro['fecha'] ?? '')],
+            ['Año', (string) ($registro['anio'] ?? '')],
+            ['Trimestre', (string) ($registro['trimestre'] ?? '')],
+            ['Llegaron antes de la hora', (string) ($registro['llegaron_antes_hora'] ?? '0')],
+            ['Llegaron después de la hora', (string) ($registro['llegaron_despues_hora'] ?? '0')],
+            ['Niños', (string) ($registro['ninos'] ?? '0')],
+            ['Jóvenes', (string) ($registro['jovenes'] ?? '0')],
+            ['Total de asistentes', (string) ($registro['total_asistentes'] ?? '0')],
+            ['Procedentes del barrio', (string) ($registro['proc_barrio'] ?? '0')],
+            ['Procedentes de Guayabo', (string) ($registro['proc_guayabo'] ?? '0')],
+            ['Visitas del barrio', (string) ($registro['visitas_barrio'] ?? '0')],
+            ['Nombres de visitas del barrio', (string) ($registro['nombres_visitas_barrio'] ?? '')],
+            ['Visitas de Guayabo', (string) ($registro['visitas_guayabo'] ?? '0')],
+            ['Nombres de visitas de Guayabo', (string) ($registro['nombres_visitas_guayabo'] ?? '')],
+            ['Retiros antes de terminar', (string) ($registro['retiros_antes_terminar'] ?? '0')],
+            ['Se quedaron todo el culto', (string) ($registro['se_quedaron_todo'] ?? '0')],
+            ['Observaciones', (string) ($registro['observaciones'] ?? '')],
+            ['Registrado por', (string) ($registro['registrado_por_nombre'] ?? '')],
+            ['Creado en', (string) ($registro['creado_en'] ?? '')]
+        ]);
+
+        if ($incluirActualizado) {
+            $filas[] = ['Actualizado en', (string) ($registro['actualizado_en'] ?? '')];
+        }
+
+        return $filas;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function envolverLinea(string $texto, int $maxLen): array
+    {
+        $texto = trim(preg_replace('/\s+/', ' ', $texto) ?? '');
+        if ($texto === '') {
+            return [''];
+        }
+
+        $resultado = [];
+        while (strlen($texto) > $maxLen) {
+            $corte = strrpos(substr($texto, 0, $maxLen + 1), ' ');
+            if ($corte === false) {
+                $corte = $maxLen;
+            }
+            $resultado[] = trim(substr($texto, 0, $corte));
+            $texto = trim(substr($texto, $corte));
+        }
+        $resultado[] = $texto;
+
+        return $resultado;
+    }
+
+    private function aWinAnsi(string $texto): string
+    {
+        $convertido = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $texto);
+        return $convertido === false ? $texto : $convertido;
     }
 
     private function escaparPdf(string $texto): string
