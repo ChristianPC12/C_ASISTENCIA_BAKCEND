@@ -22,12 +22,21 @@ final class AsistenciaRoutes
         $itemPattern = '#^/asistencias/(\d+)$#';
         $exportPattern = '#^/asistencias/(\d+)/exportar/excel$#';
         $reportPattern = '#^/asistencias/reportes/excel$#';
+        $statsPattern = '#^/asistencias/estadisticas$#';
 
         // GET /asistencias (lista con filtros)
         if ($method === 'GET' && $uri === '/asistencias') {
             AuthMiddleware::handle();
             $controller = new AsistenciaController();
             $controller->listar();
+            return true;
+        }
+
+        // GET /asistencias/estadisticas
+        if ($method === 'GET' && preg_match($statsPattern, $uri)) {
+            AuthMiddleware::handle();
+            $controller = new AsistenciaController();
+            $controller->estadisticas();
             return true;
         }
 

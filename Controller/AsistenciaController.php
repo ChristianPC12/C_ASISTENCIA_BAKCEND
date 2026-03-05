@@ -40,6 +40,27 @@ final class AsistenciaController
     }
 
     /**
+     * GET /asistencias/estadisticas
+     * Filtros: anio (obligatorio), culto (obligatorio), trimestre|mes (opcionales).
+     *
+     * @return void
+     */
+    public function estadisticas(): void
+    {
+        try {
+            $filtros = $this->obtenerFiltrosDesdeQuery();
+            $resultado = $this->asistenciaService->obtenerEstadisticas($filtros);
+
+            JsonResponse::send(200, true, 'Estadisticas de asistencia obtenidas.', $resultado);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::send(400, false, $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AsistenciaController::estadisticas] ' . $e->getMessage());
+            JsonResponse::send(500, false, 'Error interno del servidor.');
+        }
+    }
+
+    /**
      * GET /asistencias/{id}
      *
      * @param int $id ID del registro.
