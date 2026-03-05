@@ -28,13 +28,7 @@ final class AsistenciaController
     public function listar(): void
     {
         try {
-            $filtros = [
-                'culto'     => $_GET['culto'] ?? null,
-                'culto_id'  => $_GET['culto_id'] ?? null,
-                'anio'      => $_GET['anio'] ?? null,
-                'trimestre' => $_GET['trimestre'] ?? null,
-                'mes'       => $_GET['mes'] ?? null
-            ];
+            $filtros = $this->obtenerFiltrosDesdeQuery();
 
             $resultado = $this->asistenciaService->listar($filtros);
 
@@ -183,9 +177,86 @@ final class AsistenciaController
         }
     }
 
+    /**
+     * GET /asistencias/reportes/excel
+     *
+     * @return void
+     */
+    public function exportarInformeExcel(): void
+    {
+        try {
+            $filtros = $this->obtenerFiltrosDesdeQuery();
+            $registros = $this->asistenciaService->listar($filtros);
+            $contenido = $this->asistenciaExportService->generarInformeExcel($registros, $filtros);
+            $filename = $this->nombreArchivoInforme($filtros, 'xls');
+
+            header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            echo $contenido;
+        } catch (\Throwable $e) {
+            error_log('[AsistenciaController::exportarInformeExcel] ' . $e->getMessage());
+            JsonResponse::send(500, false, 'Error interno del servidor.');
+        }
+    }
+
+    /**
+     * GET /asistencias/reportes/pdf
+     *
+     * @return void
+     */
+    public function exportarInformePdf(): void
+    {
+        try {
+            $filtros = $this->obtenerFiltrosDesdeQuery();
+            $registros = $this->asistenciaService->listar($filtros);
+            $contenido = $this->asistenciaExportService->generarInformePdf($registros, $filtros);
+            $filename = $this->nombreArchivoInforme($filtros, 'pdf');
+
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            echo $contenido;
+        } catch (\Throwable $e) {
+            error_log('[AsistenciaController::exportarInformePdf] ' . $e->getMessage());
+            JsonResponse::send(500, false, 'Error interno del servidor.');
+        }
+    }
+
     private function nombreArchivo(string $fecha, string $ext): string
     {
         $fechaSegura = preg_replace('/[^0-9\-]/', '', $fecha) ?: 'sin-fecha';
         return "asistencia_{$fechaSegura}.{$ext}";
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function obtenerFiltrosDesdeQuery(): array
+    {
+        return [
+            'culto'        => $_GET['culto'] ?? null,
+            'culto_id'     => $_GET['culto_id'] ?? null,
+            'anio'         => $_GET['anio'] ?? null,
+            'trimestre'    => $_GET['trimestre'] ?? null,
+            'mes'          => $_GET['mes'] ?? null,
+            'buscar_culto' => $_GET['buscar_culto'] ?? null
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filtros
+     */
+    private function nombreArchivoInforme(array $filtros, string $ext): string
+    {
+        $anio = !empty($filtros['anio']) ? preg_replace('/[^0-9]/', '', (string) $filtros['anio']) : date('Y');
+        $periodo = 'todos';
+        if (!empty($filtros['mes'])) {
+            $periodo = 'mes-' . str_pad((string) preg_replace('/[^0-9]/', '', (string) $filtros['mes']), 2, '0', STR_PAD_LEFT);
+        } elseif (!empty($filtros['trimestre'])) {
+            $periodo = 't' . preg_replace('/[^0-9]/', '', (string) $filtros['trimestre']);
+        }
+
+        return "informe_asistencia_{$anio}_{$periodo}.{$ext}";
     }
 }

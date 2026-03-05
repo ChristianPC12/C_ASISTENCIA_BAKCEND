@@ -24,7 +24,7 @@ final class AsistenciaService
     /**
      * Lista registros de asistencia con filtros opcionales.
      *
-     * @param array<string, mixed> $filtros Filtros: culto (codigo), anio, trimestre, mes.
+     * @param array<string, mixed> $filtros Filtros: culto (codigo), anio, trimestre, mes, buscar_culto.
      * @return array<int, array<string, mixed>>
      */
     public function listar(array $filtros): array
@@ -51,6 +51,10 @@ final class AsistenciaService
 
         if (!empty($filtros['mes'])) {
             $filtrosDAO['mes'] = (int) $filtros['mes'];
+        }
+
+        if (!empty($filtros['buscar_culto'])) {
+            $filtrosDAO['buscar_culto'] = trim((string) $filtros['buscar_culto']);
         }
 
         $registros = $this->asistenciaDAO->findAll($filtrosDAO);
