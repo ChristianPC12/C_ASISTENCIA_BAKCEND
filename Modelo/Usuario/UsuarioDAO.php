@@ -26,7 +26,7 @@ final class UsuarioDAO
     public function findByUsuario(string $usuario): ?UsuarioDTO
     {
         $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
-                       u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.password_actualizada_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
@@ -52,7 +52,7 @@ final class UsuarioDAO
     public function findById(int $id): ?UsuarioDTO
     {
         $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
-                       u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.password_actualizada_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
@@ -77,7 +77,7 @@ final class UsuarioDAO
     public function findAll(): array
     {
         $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
-                       u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.password_actualizada_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
@@ -104,8 +104,8 @@ final class UsuarioDAO
      */
     public function insert(string $nombreCompleto, string $usuario, string $passwordHash, int $rolId): int
     {
-        $sql = "INSERT INTO usuarios (nombre_completo, usuario, password_hash, rol_id)
-                VALUES (:nombre_completo, :usuario, :password_hash, :rol_id)";
+        $sql = "INSERT INTO usuarios (nombre_completo, usuario, password_hash, password_actualizada_en, rol_id)
+                VALUES (:nombre_completo, :usuario, :password_hash, NOW(), :rol_id)";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
@@ -156,7 +156,10 @@ final class UsuarioDAO
      */
     public function updatePassword(int $id, string $passwordHash): bool
     {
-        $sql = "UPDATE usuarios SET password_hash = :password_hash WHERE id = :id";
+        $sql = "UPDATE usuarios
+                SET password_hash = :password_hash,
+                    password_actualizada_en = NOW()
+                WHERE id = :id";
 
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([
@@ -200,5 +203,50 @@ final class UsuarioDAO
         $stmt->execute($params);
 
         return (int) $stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Desactiva usuarios con password vencido.
+     *
+     * @return int Cantidad de filas afectadas.
+     */
+    public function deactivateExpiredPasswords(): int
+    {
+        $sql = "UPDATE usuarios
+                SET activo = 0
+                WHERE activo = 1
+                  AND password_actualizada_en IS NOT NULL
+                  AND DATE_ADD(password_actualizada_en, INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY) <= NOW()";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute();
+
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Valida si el password de un usuario vencio por fecha.
+     *
+     * @param UsuarioDTO $usuario
+     * @return bool
+     */
+    public function isPasswordExpired(UsuarioDTO $usuario): bool
+    {
+        $fecha = $usuario->passwordActualizadaEn !== ''
+            ? $usuario->passwordActualizadaEn
+            : $usuario->creadoEn;
+
+        if ($fecha === '') {
+            return true;
+        }
+
+        try {
+            $base = new DateTimeImmutable($fecha);
+            $limite = $base->modify('+' . PASSWORD_EXPIRY_DAYS . ' days');
+            $ahora = new DateTimeImmutable('now');
+            return $ahora >= $limite;
+        } catch (\Throwable $e) {
+            return true;
+        }
     }
 }

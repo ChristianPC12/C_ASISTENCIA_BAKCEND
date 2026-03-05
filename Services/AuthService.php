@@ -31,10 +31,18 @@ final class AuthService
      */
     public function login(string $usuario, string $password): array
     {
+        $this->aplicarPoliticasSeguridad();
+
         $user = $this->usuarioDAO->findByUsuario($usuario);
 
         if ($user === null) {
             throw new RuntimeException('Credenciales invalidas.');
+        }
+
+        if ($this->usuarioDAO->isPasswordExpired($user)) {
+            $this->usuarioDAO->deactivate($user->id);
+            $this->tokenDAO->deleteByUsuarioId($user->id);
+            throw new RuntimeException('La contrasena expiro. El usuario fue desactivado, solicite reactivacion al administrador.');
         }
 
         if (!$user->activo) {
@@ -52,8 +60,12 @@ final class AuthService
         // Eliminar tokens anteriores del usuario (un solo token activo)
         $this->tokenDAO->deleteByUsuarioId($user->id);
 
+        $expiraEn = (new DateTimeImmutable('now'))
+            ->modify('+' . SESSION_MAX_DURATION_HOURS . ' hours')
+            ->format('Y-m-d H:i:s');
+
         // Insertar nuevo token
-        $this->tokenDAO->insert($user->id, $tokenHash);
+        $this->tokenDAO->insert($user->id, $tokenHash, $expiraEn);
 
         return [
             'token'   => $tokenPlano,
@@ -61,7 +73,12 @@ final class AuthService
                 'id'              => $user->id,
                 'nombre_completo' => $user->nombreCompleto,
                 'usuario'         => $user->usuario,
-                'rol'             => $user->rolNombre
+                'rol'             => $user->rolNombre,
+                'activo'          => $user->activo
+            ],
+            'session' => [
+                'expira_en' => $expiraEn,
+                'idle_timeout_minutos' => SESSION_IDLE_TIMEOUT_MINUTES
             ]
         ];
     }
@@ -87,6 +104,8 @@ final class AuthService
      */
     public function me(int $usuarioId): array
     {
+        $this->aplicarPoliticasSeguridad();
+
         $user = $this->usuarioDAO->findById($usuarioId);
 
         if ($user === null) {
@@ -94,5 +113,17 @@ final class AuthService
         }
 
         return UsuarioMapper::toArray($user);
+    }
+
+    /**
+     * Ejecuta politicas de seguridad de forma centralizada.
+     *
+     * @return void
+     */
+    private function aplicarPoliticasSeguridad(): void
+    {
+        $this->usuarioDAO->deactivateExpiredPasswords();
+        $this->tokenDAO->deleteByInvalidUsers();
+        $this->tokenDAO->deleteExpiredSessions();
     }
 }

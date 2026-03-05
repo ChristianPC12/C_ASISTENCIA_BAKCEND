@@ -12,9 +12,13 @@ final class UsuarioService
     /** @var UsuarioDAO */
     private UsuarioDAO $usuarioDAO;
 
+    /** @var TokenDAO */
+    private TokenDAO $tokenDAO;
+
     public function __construct()
     {
         $this->usuarioDAO = new UsuarioDAO();
+        $this->tokenDAO = new TokenDAO();
     }
 
     /**
@@ -96,6 +100,11 @@ final class UsuarioService
             throw new RuntimeException('El nombre de usuario ya esta registrado por otro usuario.');
         }
 
+        $quiereReactivar = ($usuario->activo === false) && ($data['activo'] === true);
+        if ($quiereReactivar && empty($data['password'])) {
+            throw new RuntimeException('Para reactivar un usuario inactivo se requiere cambiar su contrasena.');
+        }
+
         $this->usuarioDAO->update(
             $id,
             $data['nombre_completo'],
@@ -108,6 +117,12 @@ final class UsuarioService
         if (!empty($data['password'])) {
             $passwordHash = password_hash($data['password'], PASSWORD_BCRYPT);
             $this->usuarioDAO->updatePassword($id, $passwordHash);
+            $this->tokenDAO->deleteByUsuarioId($id);
+        }
+
+        // Si el usuario queda inactivo, revocar sus sesiones
+        if ($data['activo'] === false) {
+            $this->tokenDAO->deleteByUsuarioId($id);
         }
 
         return $this->obtenerPorId($id);
@@ -128,5 +143,6 @@ final class UsuarioService
         }
 
         $this->usuarioDAO->deactivate($id);
+        $this->tokenDAO->deleteByUsuarioId($id);
     }
 }

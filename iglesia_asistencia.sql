@@ -36,6 +36,7 @@ CREATE TABLE `usuarios` (
   `nombre_completo` varchar(120) NOT NULL,
   `usuario` varchar(50) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
+  `password_actualizada_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `rol_id` tinyint(3) UNSIGNED NOT NULL,
   `activo` tinyint(1) NOT NULL DEFAULT 1,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -47,8 +48,8 @@ CREATE TABLE `usuarios` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed: Admin inicial (usuario: admin / password: admin123)
-INSERT INTO `usuarios` (`id`, `nombre_completo`, `usuario`, `password_hash`, `rol_id`, `activo`) VALUES
-(1, 'Administrador General', 'admin', '$2y$10$MxWFkCGW30rMt/8/tO4KuuoFKipqIFET8yJ6SDR9FemGTzlbpHEHC', 1, 1);
+INSERT INTO `usuarios` (`id`, `nombre_completo`, `usuario`, `password_hash`, `password_actualizada_en`, `rol_id`, `activo`) VALUES
+(1, 'Administrador General', 'admin', '$2y$10$MxWFkCGW30rMt/8/tO4KuuoFKipqIFET8yJ6SDR9FemGTzlbpHEHC', NOW(), 1, 1);
 
 -- ============================================================
 -- 3) TABLA: user_tokens (autenticacion Bearer)
@@ -57,10 +58,14 @@ CREATE TABLE `user_tokens` (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
   `usuario_id` bigint(20) UNSIGNED NOT NULL,
   `token_hash` varchar(64) NOT NULL COMMENT 'SHA-256 del token plano',
+  `ultimo_uso_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  `expira_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_token_hash` (`token_hash`),
   KEY `idx_token_usuario` (`usuario_id`),
+  KEY `idx_token_expira` (`expira_en`),
+  KEY `idx_token_ultimo_uso` (`ultimo_uso_en`),
   CONSTRAINT `fk_token_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

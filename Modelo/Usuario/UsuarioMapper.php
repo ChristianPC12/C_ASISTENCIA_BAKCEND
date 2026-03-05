@@ -21,6 +21,7 @@ final class UsuarioMapper
         $dto->nombreCompleto  = (string) $row['nombre_completo'];
         $dto->usuario         = (string) $row['usuario'];
         $dto->passwordHash    = (string) ($row['password_hash'] ?? '');
+        $dto->passwordActualizadaEn = (string) ($row['password_actualizada_en'] ?? '');
         $dto->rolId           = (int) $row['rol_id'];
         $dto->rolNombre       = (string) ($row['rol_nombre'] ?? '');
         $dto->activo          = (bool) ($row['activo'] ?? true);
@@ -45,8 +46,24 @@ final class UsuarioMapper
             'rol_id'           => $dto->rolId,
             'rol'              => $dto->rolNombre,
             'activo'           => $dto->activo,
+            'password_actualizada_en' => $dto->passwordActualizadaEn,
+            'password_expira_en' => self::calcularExpiracionPassword($dto->passwordActualizadaEn),
             'creado_en'        => $dto->creadoEn,
             'actualizado_en'   => $dto->actualizadoEn
         ];
+    }
+
+    private static function calcularExpiracionPassword(string $passwordActualizadaEn): string
+    {
+        if ($passwordActualizadaEn === '') {
+            return '';
+        }
+
+        try {
+            $fecha = new DateTimeImmutable($passwordActualizadaEn);
+            return $fecha->modify('+' . PASSWORD_EXPIRY_DAYS . ' days')->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 }

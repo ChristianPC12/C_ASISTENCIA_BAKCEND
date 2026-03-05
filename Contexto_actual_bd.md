@@ -46,6 +46,7 @@ Usuarios del sistema con autenticacion.
 | nombre_completo  | VARCHAR(120)        | Nombre completo del usuario      |
 | usuario          | VARCHAR(50) UNIQUE  | Nombre de usuario (login)        |
 | password_hash    | VARCHAR(255)        | Hash bcrypt del password         |
+| password_actualizada_en | TIMESTAMP    | Ultimo cambio de password        |
 | rol_id           | TINYINT(3) FK       | Referencia a roles.id            |
 | activo           | TINYINT(1) DEFAULT 1| 1=activo, 0=desactivado          |
 | creado_en        | TIMESTAMP           | Fecha de creacion                |
@@ -66,13 +67,17 @@ Tokens de autenticacion Bearer. Un usuario tiene maximo un token activo.
 | id           | BIGINT(20) PK AI  | Identificador                        |
 | usuario_id   | BIGINT(20) FK     | Referencia a usuarios.id             |
 | token_hash   | VARCHAR(64) UNIQUE| SHA-256 del token (nunca se guarda plano) |
+| ultimo_uso_en| TIMESTAMP         | Ultima actividad de la sesion        |
+| expira_en    | TIMESTAMP         | Expiracion absoluta del token        |
 | creado_en    | TIMESTAMP         | Fecha de creacion                    |
 
 **FK**: usuario_id -> usuarios(id) ON DELETE CASCADE
 **Indices**: PK(id), UNIQUE(token_hash), KEY(usuario_id)
 
-**Nota**: El token no tiene expiracion. Vive hasta que el usuario haga logout
-(se elimina el registro) o inicie sesion de nuevo (se reemplaza).
+**Nota**:
+- Expiracion por inactividad: 15 minutos sin actividad (`ultimo_uso_en`).
+- Expiracion absoluta: 8 horas desde login (`expira_en`).
+- El password expira a 30 dias desde `password_actualizada_en`; al vencer, el usuario se desactiva.
 
 ---
 

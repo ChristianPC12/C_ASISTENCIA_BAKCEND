@@ -19,3 +19,8 @@ define('BASE_PATH', '/C_ASISTENCIA_BACKEND/C_ASISTENCIA_BAKCEND');
 define('CORS_ORIGIN', '*');
 define('CORS_METHODS', 'GET, POST, PUT, DELETE, OPTIONS');
 define('CORS_HEADERS', 'Content-Type, Authorization');
+
+// --- Seguridad ---
+define('PASSWORD_EXPIRY_DAYS', 30);
+define('SESSION_IDLE_TIMEOUT_MINUTES', 15);
+define('SESSION_MAX_DURATION_HOURS', 8);

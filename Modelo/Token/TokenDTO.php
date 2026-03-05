@@ -19,4 +19,10 @@ final class TokenDTO
 
     /** @var string */
     public string $creadoEn;
+
+    /** @var string */
+    public string $ultimoUsoEn;
+
+    /** @var string */
+    public string $expiraEn;
 }

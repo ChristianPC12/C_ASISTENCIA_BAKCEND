@@ -21,6 +21,8 @@ final class TokenMapper
         $dto->usuarioId = (int) $row['usuario_id'];
         $dto->tokenHash = (string) $row['token_hash'];
         $dto->creadoEn  = (string) $row['creado_en'];
+        $dto->ultimoUsoEn = (string) ($row['ultimo_uso_en'] ?? '');
+        $dto->expiraEn = (string) ($row['expira_en'] ?? '');
 
         return $dto;
     }

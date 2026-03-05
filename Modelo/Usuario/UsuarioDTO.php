@@ -21,6 +21,9 @@ final class UsuarioDTO
     /** @var string */
     public string $passwordHash;
 
+    /** @var string */
+    public string $passwordActualizadaEn;
+
     /** @var int */
     public int $rolId;
 
