@@ -58,7 +58,7 @@ final class AsistenciaDAO
     /**
      * Lista registros de asistencia con filtros opcionales.
      *
-     * @param array<string, mixed> $filtros Filtros: culto_id, anio, trimestre, mes, buscar_culto.
+     * @param array<string, mixed> $filtros Filtros: culto_id, anio, trimestre, mes, fecha_exacta.
      * @return AsistenciaDTO[]
      */
     public function findAll(array $filtros = []): array
@@ -87,9 +87,9 @@ final class AsistenciaDAO
             $params[':mes']  = (int) $filtros['mes'];
         }
 
-        if (!empty($filtros['buscar_culto'])) {
-            $where[] = "(c.nombre LIKE :buscar_culto OR c.codigo LIKE :buscar_culto)";
-            $params[':buscar_culto'] = '%' . $filtros['buscar_culto'] . '%';
+        if (!empty($filtros['fecha_exacta'])) {
+            $where[] = "ar.fecha = :fecha_exacta";
+            $params[':fecha_exacta'] = $filtros['fecha_exacta'];
         }
 
         if (!empty($where)) {

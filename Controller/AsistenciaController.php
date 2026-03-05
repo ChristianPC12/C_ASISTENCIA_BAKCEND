@@ -152,30 +152,6 @@ final class AsistenciaController
         }
     }
 
-    /**
-     * GET /asistencias/{id}/exportar/pdf
-     *
-     * @param int $id ID del registro.
-     * @return void
-     */
-    public function exportarPdf(int $id): void
-    {
-        try {
-            $registro = $this->asistenciaService->obtenerPorId($id);
-            $contenido = $this->asistenciaExportService->generarPdf($registro);
-            $filename = $this->nombreArchivo((string) $registro['fecha'], 'pdf');
-
-            header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-            echo $contenido;
-        } catch (RuntimeException $e) {
-            JsonResponse::send(404, false, $e->getMessage());
-        } catch (\Throwable $e) {
-            error_log('[AsistenciaController::exportarPdf] ' . $e->getMessage());
-            JsonResponse::send(500, false, 'Error interno del servidor.');
-        }
-    }
 
     /**
      * GET /asistencias/reportes/excel
@@ -200,28 +176,6 @@ final class AsistenciaController
         }
     }
 
-    /**
-     * GET /asistencias/reportes/pdf
-     *
-     * @return void
-     */
-    public function exportarInformePdf(): void
-    {
-        try {
-            $filtros = $this->obtenerFiltrosDesdeQuery();
-            $registros = $this->asistenciaService->listar($filtros);
-            $contenido = $this->asistenciaExportService->generarInformePdf($registros, $filtros);
-            $filename = $this->nombreArchivoInforme($filtros, 'pdf');
-
-            header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-            echo $contenido;
-        } catch (\Throwable $e) {
-            error_log('[AsistenciaController::exportarInformePdf] ' . $e->getMessage());
-            JsonResponse::send(500, false, 'Error interno del servidor.');
-        }
-    }
 
     private function nombreArchivo(string $fecha, string $ext): string
     {
@@ -240,7 +194,7 @@ final class AsistenciaController
             'anio'         => $_GET['anio'] ?? null,
             'trimestre'    => $_GET['trimestre'] ?? null,
             'mes'          => $_GET['mes'] ?? null,
-            'buscar_culto' => $_GET['buscar_culto'] ?? null
+            'fecha_exacta' => $_GET['fecha_exacta'] ?? null
         ];
     }
 

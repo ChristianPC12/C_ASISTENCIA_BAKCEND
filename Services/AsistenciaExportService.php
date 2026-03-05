@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Servicio para generar exportaciones de asistencia.
+ * Servicio para generar exportaciones de asistencia en Excel.
  */
 final class AsistenciaExportService
 {
@@ -40,31 +40,6 @@ final class AsistenciaExportService
             . '<p>Fecha del registro: ' . htmlspecialchars($fecha, ENT_QUOTES, 'UTF-8') . '</p>'
             . '<table><tbody>' . $rowsHtml . '</tbody></table>'
             . '</body></html>';
-    }
-
-    /**
-     * Genera un PDF de una página con el detalle de un solo registro.
-     *
-     * @param array<string, mixed> $registro
-     * @return string
-     */
-    public function generarPdf(array $registro): string
-    {
-        $lineas = [
-            'Registro de Asistencia',
-            'Culto: ' . (string) ($registro['culto_nombre'] ?? $registro['culto_codigo'] ?? ''),
-            'Fecha del registro: ' . (string) ($registro['fecha'] ?? ''),
-            ''
-        ];
-
-        foreach ($this->construirFilas($registro, false, false) as [$campo, $valor]) {
-            $texto = $campo . ': ' . ($valor === '' ? '-' : $valor);
-            foreach ($this->envolverLinea($texto, 96) as $subLinea) {
-                $lineas[] = $subLinea;
-            }
-        }
-
-        return $this->crearPdfDesdeLineas($lineas, 10, 45, 15, 50);
     }
 
     /**
@@ -141,59 +116,6 @@ final class AsistenciaExportService
     }
 
     /**
-     * Genera informe en PDF con lista de registros y detalles opcionales.
-     *
-     * @param array<int, array<string, mixed>> $registros
-     * @param array<string, mixed> $filtros
-     * @return string
-     */
-    public function generarInformePdf(array $registros, array $filtros): string
-    {
-        $lineas = [
-            'Informe de Registros de Asistencia',
-            $this->descripcionFiltros($filtros),
-            ''
-        ];
-
-        if (empty($registros)) {
-            $lineas[] = 'Sin registros para los filtros seleccionados.';
-        } else {
-            foreach ($registros as $i => $reg) {
-                $lineas[] = sprintf(
-                    '%d) %s | %s | Total:%d | N:%d J:%d | A:%d D:%d | B:%d G:%d | VB:%d VG:%d | R:%d Q:%d',
-                    $i + 1,
-                    (string) ($reg['fecha'] ?? ''),
-                    (string) ($reg['culto_nombre'] ?? $reg['culto_codigo'] ?? ''),
-                    (int) ($reg['total_asistentes'] ?? 0),
-                    (int) ($reg['ninos'] ?? 0),
-                    (int) ($reg['jovenes'] ?? 0),
-                    (int) ($reg['llegaron_antes_hora'] ?? 0),
-                    (int) ($reg['llegaron_despues_hora'] ?? 0),
-                    (int) ($reg['proc_barrio'] ?? 0),
-                    (int) ($reg['proc_guayabo'] ?? 0),
-                    (int) ($reg['visitas_barrio'] ?? 0),
-                    (int) ($reg['visitas_guayabo'] ?? 0),
-                    (int) ($reg['retiros_antes_terminar'] ?? 0),
-                    (int) ($reg['se_quedaron_todo'] ?? 0)
-                );
-
-                if ((int) ($reg['visitas_barrio'] ?? 0) > 0) {
-                    $lineas[] = '   Visitas del Barrio: ' . ((string) ($reg['nombres_visitas_barrio'] ?? '') ?: '-');
-                }
-                if ((int) ($reg['visitas_guayabo'] ?? 0) > 0) {
-                    $lineas[] = '   Visitas de Guayabo: ' . ((string) ($reg['nombres_visitas_guayabo'] ?? '') ?: '-');
-                }
-                if (!empty($reg['observaciones'])) {
-                    $lineas[] = '   Observaciones: ' . (string) $reg['observaciones'];
-                }
-                $lineas[] = '';
-            }
-        }
-
-        return $this->crearPdfDesdeLineas($lineas, 9, 30, 12, 40, 115);
-    }
-
-    /**
      * @param array<string, mixed> $registro
      * @return array<int, array{0:string,1:string}>
      */
@@ -237,85 +159,6 @@ final class AsistenciaExportService
     }
 
     /**
-     * @return array<int, string>
-     */
-    private function envolverLinea(string $texto, int $maxLen): array
-    {
-        $texto = trim(preg_replace('/\s+/', ' ', $texto) ?? '');
-        if ($texto === '') {
-            return [''];
-        }
-
-        $resultado = [];
-        while (strlen($texto) > $maxLen) {
-            $corte = strrpos(substr($texto, 0, $maxLen + 1), ' ');
-            if ($corte === false) {
-                $corte = $maxLen;
-            }
-            $resultado[] = trim(substr($texto, 0, $corte));
-            $texto = trim(substr($texto, $corte));
-        }
-        $resultado[] = $texto;
-
-        return $resultado;
-    }
-
-    /**
-     * @param array<string> $lineas
-     */
-    private function crearPdfDesdeLineas(array $lineas, int $fontSize, int $x, int $lineStep, int $yMin, int $wrapLen = 96): string
-    {
-        $y = 800;
-        $contenido = "BT\n/F1 {$fontSize} Tf\n";
-
-        foreach ($lineas as $linea) {
-            foreach ($this->envolverLinea($linea, $wrapLen) as $subLinea) {
-                $texto = $this->escaparPdf($this->aWinAnsi($subLinea));
-                $contenido .= "1 0 0 1 {$x} {$y} Tm\n({$texto}) Tj\n";
-                $y -= $lineStep;
-                if ($y < $yMin) {
-                    break 2;
-                }
-            }
-        }
-
-        $contenido .= "ET";
-        $len = strlen($contenido);
-
-        $o1 = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
-        $o2 = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
-        $o3 = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-            . "/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n";
-        $o4 = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n";
-        $o5 = "5 0 obj\n<< /Length {$len} >>\nstream\n{$contenido}\nendstream\nendobj\n";
-
-        $pdf = "%PDF-1.4\n";
-        $offsets = [];
-        $offsets[] = strlen($pdf); $pdf .= $o1;
-        $offsets[] = strlen($pdf); $pdf .= $o2;
-        $offsets[] = strlen($pdf); $pdf .= $o3;
-        $offsets[] = strlen($pdf); $pdf .= $o4;
-        $offsets[] = strlen($pdf); $pdf .= $o5;
-
-        $xref = strlen($pdf);
-        $pdf .= "xref\n0 6\n";
-        $pdf .= "0000000000 65535 f \n";
-        foreach ($offsets as $off) {
-            $pdf .= sprintf("%010d 00000 n \n", $off);
-        }
-        $pdf .= "trailer\n<< /Size 6 /Root 1 0 R >>\n";
-        $pdf .= "startxref\n{$xref}\n%%EOF";
-
-        return $pdf;
-    }
-
-    private function aWinAnsi(string $texto): string
-    {
-        $convertido = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $texto);
-        return $convertido === false ? $texto : $convertido;
-    }
-
-    /**
      * @param array<string, mixed> $filtros
      */
     private function descripcionFiltros(array $filtros): string
@@ -333,8 +176,8 @@ final class AsistenciaExportService
         if (!empty($filtros['culto'])) {
             $partes[] = 'Culto: ' . (string) $filtros['culto'];
         }
-        if (!empty($filtros['buscar_culto'])) {
-            $partes[] = 'Búsqueda: ' . (string) $filtros['buscar_culto'];
+        if (!empty($filtros['fecha_exacta'])) {
+            $partes[] = 'Fecha exacta: ' . (string) $filtros['fecha_exacta'];
         }
 
         if (empty($partes)) {
@@ -342,12 +185,5 @@ final class AsistenciaExportService
         }
 
         return 'Filtros: ' . implode(' | ', $partes);
-    }
-
-    private function escaparPdf(string $texto): string
-    {
-        $t = str_replace('\\', '\\\\', $texto);
-        $t = str_replace('(', '\\(', $t);
-        return str_replace(')', '\\)', $t);
     }
 }
