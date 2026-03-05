@@ -54,7 +54,7 @@ final class AsistenciaService
         }
 
         if (!empty($filtros['fecha_exacta'])) {
-            $filtrosDAO['fecha_exacta'] = trim((string) $filtros['fecha_exacta']);
+            $filtrosDAO['fecha_exacta'] = $this->normalizarFechaExacta((string) $filtros['fecha_exacta']);
         }
 
         $registros = $this->asistenciaDAO->findAll($filtrosDAO);
@@ -65,6 +65,30 @@ final class AsistenciaService
         }
 
         return $resultado;
+    }
+
+    private function normalizarFechaExacta(string $valor): string
+    {
+        $fecha = trim($valor);
+        if ($fecha === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d{1,2}\/\d{1,2}\/\d{4}$/', $fecha) === 1) {
+            [$dia, $mes, $anio] = array_map('intval', explode('/', $fecha));
+            if (checkdate($mes, $dia, $anio)) {
+                return sprintf('%04d-%02d-%02d', $anio, $mes, $dia);
+            }
+        }
+
+        if (preg_match('/^\d{4}-\d{1,2}-\d{1,2}$/', $fecha) === 1) {
+            [$anio, $mes, $dia] = array_map('intval', explode('-', $fecha));
+            if (checkdate($mes, $dia, $anio)) {
+                return sprintf('%04d-%02d-%02d', $anio, $mes, $dia);
+            }
+        }
+
+        return $fecha;
     }
 
     /**
