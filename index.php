@@ -41,6 +41,9 @@ require_once __DIR__ . '/Modelo/Token/TokenDTO.php';
 require_once __DIR__ . '/Modelo/Token/TokenMapper.php';
 require_once __DIR__ . '/Modelo/Token/TokenDAO.php';
 
+// Seguridad
+require_once __DIR__ . '/Modelo/Seguridad/LoginIntentoDAO.php';
+
 // Culto
 require_once __DIR__ . '/Modelo/Culto/CultoDTO.php';
 require_once __DIR__ . '/Modelo/Culto/CultoMapper.php';
@@ -121,3 +124,4 @@ $resolved = AuthRoutes::resolve($method, $uri)
 if (!$resolved) {
     JsonResponse::send(404, false, 'Recurso no encontrado.');
 }
+

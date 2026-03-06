@@ -71,7 +71,22 @@ CREATE TABLE `user_tokens` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
--- 4) TABLA: cultos
+-- 4) TABLA: login_intentos (rate limit de login)
+-- ============================================================
+CREATE TABLE `login_intentos` (
+  `usuario` varchar(50) NOT NULL,
+  `ip` varchar(45) NOT NULL,
+  `intentos` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `primer_intento_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  `ultimo_intento_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `bloqueado_hasta` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`usuario`, `ip`),
+  KEY `idx_login_intentos_bloqueado` (`bloqueado_hasta`),
+  KEY `idx_login_intentos_ultimo` (`ultimo_intento_en`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 5) TABLA: cultos
 -- ============================================================
 CREATE TABLE `cultos` (
   `id` tinyint(3) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -89,7 +104,7 @@ INSERT INTO `cultos` (`id`, `codigo`, `nombre`, `dia_semana`, `hora_inicio`) VAL
 (3, 'MIERCOLES', 'Culto Miercoles', 4, '18:30:00');
 
 -- ============================================================
--- 5) TABLA: asistencia_registro
+-- 6) TABLA: asistencia_registro
 -- ============================================================
 CREATE TABLE `asistencia_registro` (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -126,7 +141,7 @@ CREATE TABLE `asistencia_registro` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
--- 6) VISTAS por culto (sin JOIN innecesario, filtran por culto_id)
+-- 7) VISTAS por culto (sin JOIN innecesario, filtran por culto_id)
 -- ============================================================
 
 CREATE OR REPLACE VIEW `asistencia_sabado` AS

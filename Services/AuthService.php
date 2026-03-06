@@ -15,10 +15,14 @@ final class AuthService
     /** @var TokenDAO */
     private TokenDAO $tokenDAO;
 
+    /** @var LoginIntentoDAO */
+    private LoginIntentoDAO $loginIntentoDAO;
+
     public function __construct()
     {
         $this->usuarioDAO = new UsuarioDAO();
         $this->tokenDAO   = new TokenDAO();
+        $this->loginIntentoDAO = new LoginIntentoDAO();
     }
 
     /**
@@ -26,16 +30,29 @@ final class AuthService
      *
      * @param string $usuario  Nombre de usuario.
      * @param string $password Password en texto plano.
+     * @param string $ipCliente IP del cliente para rate limit.
      * @return array{token: string, usuario: array<string, mixed>}
      * @throws RuntimeException Si las credenciales son invalidas.
      */
-    public function login(string $usuario, string $password): array
+    public function login(string $usuario, string $password, string $ipCliente = ''): array
     {
         $this->aplicarPoliticasSeguridad();
+
+        $usuarioRateLimit = $this->normalizarUsuarioRateLimit($usuario);
+        $ipRateLimit = $this->normalizarIpRateLimit($ipCliente);
+
+        $this->loginIntentoDAO->purgarExpirados();
+        $estadoBloqueo = $this->loginIntentoDAO->getBlockStatus($usuarioRateLimit, $ipRateLimit);
+
+        if ($estadoBloqueo['bloqueado']) {
+            $minutos = max(1, (int) ceil($estadoBloqueo['segundos_restantes'] / 60));
+            throw new RuntimeException('Demasiados intentos fallidos. Intente nuevamente en ' . $minutos . ' minuto(s).');
+        }
 
         $user = $this->usuarioDAO->findByUsuario($usuario);
 
         if ($user === null) {
+            $this->loginIntentoDAO->registrarFallo($usuarioRateLimit, $ipRateLimit);
             throw new RuntimeException('Credenciales invalidas.');
         }
 
@@ -50,8 +67,12 @@ final class AuthService
         }
 
         if (!password_verify($password, $user->passwordHash)) {
+            $this->loginIntentoDAO->registrarFallo($usuarioRateLimit, $ipRateLimit);
             throw new RuntimeException('Credenciales invalidas.');
         }
+
+        // Login exitoso: limpiar contador de intentos.
+        $this->loginIntentoDAO->limpiarIntentos($usuarioRateLimit, $ipRateLimit);
 
         // Generar token
         $tokenPlano = bin2hex(random_bytes(32));
@@ -156,5 +177,30 @@ final class AuthService
         } catch (\Throwable $e) {
             return '';
         }
+    }
+
+    /**
+     * @param string $usuario
+     * @return string
+     */
+    private function normalizarUsuarioRateLimit(string $usuario): string
+    {
+        $normalizado = strtolower(trim($usuario));
+        return $normalizado !== '' ? $normalizado : 'desconocido';
+    }
+
+    /**
+     * @param string $ip
+     * @return string
+     */
+    private function normalizarIpRateLimit(string $ip): string
+    {
+        $valor = trim($ip);
+
+        if ($valor !== '' && filter_var($valor, FILTER_VALIDATE_IP)) {
+            return $valor;
+        }
+
+        return '0.0.0.0';
     }
 }
