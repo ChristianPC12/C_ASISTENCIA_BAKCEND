@@ -26,7 +26,7 @@ final class UsuarioDAO
     public function findByUsuario(string $usuario): ?UsuarioDTO
     {
         $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
-                       u.password_actualizada_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
@@ -52,7 +52,7 @@ final class UsuarioDAO
     public function findById(int $id): ?UsuarioDTO
     {
         $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
-                       u.password_actualizada_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
@@ -77,7 +77,7 @@ final class UsuarioDAO
     public function findAll(): array
     {
         $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
-                       u.password_actualizada_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
@@ -104,8 +104,14 @@ final class UsuarioDAO
      */
     public function insert(string $nombreCompleto, string $usuario, string $passwordHash, int $rolId): int
     {
-        $sql = "INSERT INTO usuarios (nombre_completo, usuario, password_hash, password_actualizada_en, rol_id)
-                VALUES (:nombre_completo, :usuario, :password_hash, NOW(), :rol_id)";
+        $sql = "INSERT INTO usuarios (
+                    nombre_completo, usuario, password_hash, password_actualizada_en, password_expira_en, rol_id
+                )
+                VALUES (
+                    :nombre_completo, :usuario, :password_hash, NOW(),
+                    DATE_ADD(NOW(), INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY),
+                    :rol_id
+                )";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
@@ -158,7 +164,8 @@ final class UsuarioDAO
     {
         $sql = "UPDATE usuarios
                 SET password_hash = :password_hash,
-                    password_actualizada_en = NOW()
+                    password_actualizada_en = NOW(),
+                    password_expira_en = DATE_ADD(NOW(), INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY)
                 WHERE id = :id";
 
         $stmt = $this->pdo->prepare($sql);
@@ -215,8 +222,11 @@ final class UsuarioDAO
         $sql = "UPDATE usuarios
                 SET activo = 0
                 WHERE activo = 1
-                  AND password_actualizada_en IS NOT NULL
-                  AND DATE_ADD(password_actualizada_en, INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY) <= NOW()";
+                  AND (
+                        (password_expira_en IS NOT NULL AND password_expira_en <= NOW())
+                     OR (password_expira_en IS NULL AND password_actualizada_en IS NOT NULL
+                        AND DATE_ADD(password_actualizada_en, INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY) <= NOW())
+                  )";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute();
@@ -232,17 +242,22 @@ final class UsuarioDAO
      */
     public function isPasswordExpired(UsuarioDTO $usuario): bool
     {
-        $fecha = $usuario->passwordActualizadaEn !== ''
-            ? $usuario->passwordActualizadaEn
-            : $usuario->creadoEn;
-
-        if ($fecha === '') {
-            return true;
-        }
-
         try {
-            $base = new DateTimeImmutable($fecha);
-            $limite = $base->modify('+' . PASSWORD_EXPIRY_DAYS . ' days');
+            if ($usuario->passwordExpiraEn !== '') {
+                $limite = new DateTimeImmutable($usuario->passwordExpiraEn);
+            } else {
+                $fechaBase = $usuario->passwordActualizadaEn !== ''
+                    ? $usuario->passwordActualizadaEn
+                    : $usuario->creadoEn;
+
+                if ($fechaBase === '') {
+                    return true;
+                }
+
+                $base = new DateTimeImmutable($fechaBase);
+                $limite = $base->modify('+' . PASSWORD_EXPIRY_DAYS . ' days');
+            }
+
             $ahora = new DateTimeImmutable('now');
             return $ahora >= $limite;
         } catch (\Throwable $e) {

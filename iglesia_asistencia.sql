@@ -37,6 +37,7 @@ CREATE TABLE `usuarios` (
   `usuario` varchar(50) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `password_actualizada_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  `password_expira_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `rol_id` tinyint(3) UNSIGNED NOT NULL,
   `activo` tinyint(1) NOT NULL DEFAULT 1,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -48,8 +49,8 @@ CREATE TABLE `usuarios` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed: Admin inicial (usuario: admin / password: admin123)
-INSERT INTO `usuarios` (`id`, `nombre_completo`, `usuario`, `password_hash`, `password_actualizada_en`, `rol_id`, `activo`) VALUES
-(1, 'Administrador General', 'admin', '$2y$10$MxWFkCGW30rMt/8/tO4KuuoFKipqIFET8yJ6SDR9FemGTzlbpHEHC', NOW(), 1, 1);
+INSERT INTO `usuarios` (`id`, `nombre_completo`, `usuario`, `password_hash`, `password_actualizada_en`, `password_expira_en`, `rol_id`, `activo`) VALUES
+(1, 'Administrador General', 'admin', '$2y$10$MxWFkCGW30rMt/8/tO4KuuoFKipqIFET8yJ6SDR9FemGTzlbpHEHC', NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1, 1);
 
 -- ============================================================
 -- 3) TABLA: user_tokens (autenticacion Bearer)

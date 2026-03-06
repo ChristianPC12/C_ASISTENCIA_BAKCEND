@@ -74,7 +74,9 @@ final class AuthService
                 'nombre_completo' => $user->nombreCompleto,
                 'usuario'         => $user->usuario,
                 'rol'             => $user->rolNombre,
-                'activo'          => $user->activo
+                'activo'          => $user->activo,
+                'password_actualizada_en' => $user->passwordActualizadaEn,
+                'password_expira_en' => $this->resolverExpiracionPassword($user)
             ],
             'session' => [
                 'expira_en' => $expiraEn,
@@ -125,5 +127,34 @@ final class AuthService
         $this->usuarioDAO->deactivateExpiredPasswords();
         $this->tokenDAO->deleteByInvalidUsers();
         $this->tokenDAO->deleteExpiredSessions();
+    }
+
+    /**
+     * Obtiene la fecha de expiracion del password de forma resiliente.
+     *
+     * @param UsuarioDTO $user
+     * @return string
+     */
+    private function resolverExpiracionPassword(UsuarioDTO $user): string
+    {
+        if ($user->passwordExpiraEn !== '') {
+            return $user->passwordExpiraEn;
+        }
+
+        $base = $user->passwordActualizadaEn !== ''
+            ? $user->passwordActualizadaEn
+            : $user->creadoEn;
+
+        if ($base === '') {
+            return '';
+        }
+
+        try {
+            return (new DateTimeImmutable($base))
+                ->modify('+' . PASSWORD_EXPIRY_DAYS . ' days')
+                ->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 }
