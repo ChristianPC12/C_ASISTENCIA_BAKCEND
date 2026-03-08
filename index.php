@@ -54,12 +54,18 @@ require_once __DIR__ . '/Modelo/Asistencia/AsistenciaDTO.php';
 require_once __DIR__ . '/Modelo/Asistencia/AsistenciaMapper.php';
 require_once __DIR__ . '/Modelo/Asistencia/AsistenciaDAO.php';
 
+// Presentacion
+require_once __DIR__ . '/Modelo/Presentacion/PresentacionDTO.php';
+require_once __DIR__ . '/Modelo/Presentacion/PresentacionMapper.php';
+require_once __DIR__ . '/Modelo/Presentacion/PresentacionDAO.php';
+
 // ============================================================
 // 5) Validators
 // ============================================================
 require_once __DIR__ . '/Validator/AuthValidator.php';
 require_once __DIR__ . '/Validator/UsuarioValidator.php';
 require_once __DIR__ . '/Validator/AsistenciaValidator.php';
+require_once __DIR__ . '/Validator/PresentacionValidator.php';
 
 // ============================================================
 // 6) Services
@@ -69,6 +75,7 @@ require_once __DIR__ . '/Services/CultoService.php';
 require_once __DIR__ . '/Services/UsuarioService.php';
 require_once __DIR__ . '/Services/AsistenciaService.php';
 require_once __DIR__ . '/Services/AsistenciaExportService.php';
+require_once __DIR__ . '/Services/PresentacionService.php';
 
 // ============================================================
 // 7) Controllers
@@ -77,6 +84,7 @@ require_once __DIR__ . '/Controller/AuthController.php';
 require_once __DIR__ . '/Controller/CultoController.php';
 require_once __DIR__ . '/Controller/UsuarioController.php';
 require_once __DIR__ . '/Controller/AsistenciaController.php';
+require_once __DIR__ . '/Controller/PresentacionController.php';
 
 // ============================================================
 // 8) Routers
@@ -85,6 +93,7 @@ require_once __DIR__ . '/Router/AuthRoutes.php';
 require_once __DIR__ . '/Router/CultoRoutes.php';
 require_once __DIR__ . '/Router/UsuarioRoutes.php';
 require_once __DIR__ . '/Router/AsistenciaRoutes.php';
+require_once __DIR__ . '/Router/PresentacionRoutes.php';
 
 // ============================================================
 // EJECUCION
@@ -118,6 +127,7 @@ if ($uri === '') {
 $resolved = AuthRoutes::resolve($method, $uri)
          || CultoRoutes::resolve($method, $uri)
          || AsistenciaRoutes::resolve($method, $uri)
+         || PresentacionRoutes::resolve($method, $uri)
          || UsuarioRoutes::resolve($method, $uri);
 
 // Si ninguna ruta coincidio: 404

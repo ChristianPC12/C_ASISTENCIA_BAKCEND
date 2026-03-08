@@ -16,3 +16,7 @@ Options -Indexes
 <FilesMatch "\.(sql|md|gitignore)$">
     Require all denied
 </FilesMatch>
+
+<FilesMatch "\.local\.php$">
+    Require all denied
+</FilesMatch>
