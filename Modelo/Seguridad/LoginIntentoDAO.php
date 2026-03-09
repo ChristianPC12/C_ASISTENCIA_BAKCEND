@@ -24,7 +24,22 @@ final class LoginIntentoDAO
      */
     public function getBlockStatus(string $usuario, string $ip): array
     {
-        $sql = "SELECT primer_intento_en, bloqueado_hasta
+        $sql = "SELECT
+                    bloqueado_hasta,
+                    CASE
+                        WHEN bloqueado_hasta IS NOT NULL AND bloqueado_hasta > NOW() THEN 1
+                        ELSE 0
+                    END AS bloqueado_activo,
+                    CASE
+                        WHEN bloqueado_hasta IS NOT NULL AND bloqueado_hasta <= NOW() THEN 1
+                        ELSE 0
+                    END AS bloqueo_vencido,
+                    CASE
+                        WHEN bloqueado_hasta IS NULL
+                             AND DATE_ADD(primer_intento_en, INTERVAL " . (int) LOGIN_ATTEMPT_WINDOW_MINUTES . " MINUTE) <= NOW() THEN 1
+                        ELSE 0
+                    END AS ventana_vencida,
+                    GREATEST(TIMESTAMPDIFF(SECOND, NOW(), bloqueado_hasta), 0) AS segundos_restantes
                 FROM login_intentos
                 WHERE usuario = :usuario AND ip = :ip
                 LIMIT 1";
@@ -43,32 +58,19 @@ final class LoginIntentoDAO
             ];
         }
 
-        $ahora = new DateTimeImmutable('now');
-        $bloqueadoHasta = $this->parseTimestamp($row['bloqueado_hasta'] ?? null);
-
-        if ($bloqueadoHasta !== null) {
-            if ($bloqueadoHasta > $ahora) {
-                return [
-                    'bloqueado' => true,
-                    'segundos_restantes' => max(0, $bloqueadoHasta->getTimestamp() - $ahora->getTimestamp())
-                ];
-            }
-
-            // Bloqueo vencido: limpiar estado para permitir nuevos intentos.
-            $this->limpiarIntentos($usuario, $ip);
+        $bloqueadoActivo = (int) ($row['bloqueado_activo'] ?? 0) === 1;
+        if ($bloqueadoActivo) {
             return [
-                'bloqueado' => false,
-                'segundos_restantes' => 0
+                'bloqueado' => true,
+                'segundos_restantes' => max(0, (int) ($row['segundos_restantes'] ?? 0))
             ];
         }
 
-        // Ventana de intentos vencida: limpiar para no acumular historico innecesario.
-        $primerIntento = $this->parseTimestamp($row['primer_intento_en'] ?? null);
-        if ($primerIntento !== null) {
-            $finVentana = $primerIntento->modify('+' . (int) LOGIN_ATTEMPT_WINDOW_MINUTES . ' minutes');
-            if ($finVentana <= $ahora) {
-                $this->limpiarIntentos($usuario, $ip);
-            }
+        $bloqueoVencido = (int) ($row['bloqueo_vencido'] ?? 0) === 1;
+        $ventanaVencida = (int) ($row['ventana_vencida'] ?? 0) === 1;
+        if ($bloqueoVencido || $ventanaVencida) {
+            // Limpiar estado para permitir nuevos intentos.
+            $this->limpiarIntentos($usuario, $ip);
         }
 
         return [
@@ -103,8 +105,6 @@ final class LoginIntentoDAO
             ]);
             $row = $stmt->fetch();
 
-            $ahora = new DateTimeImmutable('now');
-
             if ($row === false) {
                 $insert = "INSERT INTO login_intentos
                            (usuario, ip, intentos, primer_intento_en, ultimo_intento_en, bloqueado_hasta)
@@ -121,45 +121,29 @@ final class LoginIntentoDAO
             }
 
             $intentosActuales = (int) ($row['intentos'] ?? 0);
-            $primerIntento = $this->parseTimestamp($row['primer_intento_en'] ?? null) ?? $ahora;
-            $bloqueadoHasta = $this->parseTimestamp($row['bloqueado_hasta'] ?? null);
+            $bloqueadoHastaRaw = (string) ($row['bloqueado_hasta'] ?? '');
+            $primerIntentoRaw = (string) ($row['primer_intento_en'] ?? '');
 
-            // Si el bloqueo ya vencio, reiniciar ventana.
-            if ($bloqueadoHasta !== null && $bloqueadoHasta <= $ahora) {
-                $intentosActuales = 0;
-                $primerIntento = $ahora;
-                $bloqueadoHasta = null;
-            }
+            $ventanaVencida = $this->esVentanaVencida($primerIntentoRaw);
+            $bloqueoVencido = $this->esBloqueoVencido($bloqueadoHastaRaw);
+            $reiniciarVentana = $ventanaVencida || $bloqueoVencido;
 
-            $finVentana = $primerIntento->modify('+' . (int) LOGIN_ATTEMPT_WINDOW_MINUTES . ' minutes');
-            if ($finVentana <= $ahora) {
-                $intentosActuales = 0;
-                $primerIntento = $ahora;
-                $bloqueadoHasta = null;
-            }
-
-            $nuevosIntentos = $intentosActuales + 1;
+            $nuevosIntentos = ($reiniciarVentana ? 0 : $intentosActuales) + 1;
             if ($nuevosIntentos >= (int) LOGIN_MAX_FAILED_ATTEMPTS) {
-                $bloqueadoHasta = $ahora->modify('+' . (int) LOGIN_BLOCK_MINUTES . ' minutes');
+                $sqlBloqueadoHasta = "DATE_ADD(NOW(), INTERVAL " . (int) LOGIN_BLOCK_MINUTES . " MINUTE)";
+            } else {
+                $sqlBloqueadoHasta = "NULL";
             }
 
             $update = "UPDATE login_intentos
                        SET intentos = :intentos,
-                           primer_intento_en = :primer_intento_en,
+                           primer_intento_en = " . ($reiniciarVentana ? "NOW()" : "primer_intento_en") . ",
                            ultimo_intento_en = NOW(),
-                           bloqueado_hasta = :bloqueado_hasta
+                           bloqueado_hasta = " . $sqlBloqueadoHasta . "
                        WHERE usuario = :usuario AND ip = :ip";
 
             $stmtUpdate = $this->pdo->prepare($update);
             $stmtUpdate->bindValue(':intentos', $nuevosIntentos, PDO::PARAM_INT);
-            $stmtUpdate->bindValue(':primer_intento_en', $primerIntento->format('Y-m-d H:i:s'));
-
-            if ($bloqueadoHasta === null) {
-                $stmtUpdate->bindValue(':bloqueado_hasta', null, PDO::PARAM_NULL);
-            } else {
-                $stmtUpdate->bindValue(':bloqueado_hasta', $bloqueadoHasta->format('Y-m-d H:i:s'));
-            }
-
             $stmtUpdate->bindValue(':usuario', $usuario);
             $stmtUpdate->bindValue(':ip', $ip);
             $stmtUpdate->execute();
@@ -210,19 +194,37 @@ final class LoginIntentoDAO
     }
 
     /**
-     * @param mixed $value
-     * @return DateTimeImmutable|null
+     * Evalua vencimiento de bloqueo en SQL para evitar desajustes de zona horaria.
      */
-    private function parseTimestamp($value): ?DateTimeImmutable
+    private function esBloqueoVencido(string $bloqueadoHasta): bool
     {
-        if (!is_string($value) || trim($value) === '') {
-            return null;
+        $valor = trim($bloqueadoHasta);
+        if ($valor === '') {
+            return false;
         }
 
-        try {
-            return new DateTimeImmutable($value);
-        } catch (\Throwable $e) {
-            return null;
+        $sql = "SELECT CASE WHEN :bloqueado_hasta <= NOW() THEN 1 ELSE 0 END";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':bloqueado_hasta' => $valor]);
+        return (int) $stmt->fetchColumn() === 1;
+    }
+
+    /**
+     * Evalua vencimiento de ventana en SQL para evitar desajustes de zona horaria.
+     */
+    private function esVentanaVencida(string $primerIntento): bool
+    {
+        $valor = trim($primerIntento);
+        if ($valor === '') {
+            return true;
         }
+
+        $sql = "SELECT CASE
+                    WHEN DATE_ADD(:primer_intento_en, INTERVAL " . (int) LOGIN_ATTEMPT_WINDOW_MINUTES . " MINUTE) <= NOW() THEN 1
+                    ELSE 0
+                END";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':primer_intento_en' => $valor]);
+        return (int) $stmt->fetchColumn() === 1;
     }
 }

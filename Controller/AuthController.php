@@ -28,7 +28,13 @@ final class AuthController
             $data      = Sanitizer::getJsonBody();
             $validated = AuthValidator::validateLogin($data);
             $ipCliente = $this->obtenerIpCliente();
-            $resultado = $this->authService->login($validated['usuario'], $validated['password'], $ipCliente);
+            $dispositivoCliente = $this->obtenerDispositivoCliente();
+            $resultado = $this->authService->login(
+                $validated['usuario'],
+                $validated['password'],
+                $ipCliente,
+                $dispositivoCliente
+            );
 
             JsonResponse::send(200, true, 'Inicio de sesion exitoso.', $resultado);
         } catch (InvalidArgumentException $e) {
@@ -111,5 +117,33 @@ final class AuthController
         }
 
         return '0.0.0.0';
+    }
+
+    /**
+     * Obtiene identificador de dispositivo enviado por frontend.
+     *
+     * @return string
+     */
+    private function obtenerDispositivoCliente(): string
+    {
+        $valor = $_SERVER['HTTP_X_DEVICE_ID'] ?? '';
+        if (!is_string($valor)) {
+            return '';
+        }
+
+        $valor = trim($valor);
+        if ($valor === '') {
+            return '';
+        }
+
+        if (strlen($valor) > 120) {
+            $valor = substr($valor, 0, 120);
+        }
+
+        if (!preg_match('/^[A-Za-z0-9._:-]+$/', $valor)) {
+            return '';
+        }
+
+        return $valor;
     }
 }

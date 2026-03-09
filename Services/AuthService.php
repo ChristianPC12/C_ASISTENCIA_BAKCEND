@@ -9,6 +9,8 @@ declare(strict_types=1);
  */
 final class AuthService
 {
+    private const RATE_LIMIT_CLIENT_SCOPE_USER = '__client_scope__';
+
     /** @var UsuarioDAO */
     private UsuarioDAO $usuarioDAO;
 
@@ -31,48 +33,53 @@ final class AuthService
      * @param string $usuario  Nombre de usuario.
      * @param string $password Password en texto plano.
      * @param string $ipCliente IP del cliente para rate limit.
+     * @param string $dispositivoCliente Identificador de dispositivo enviado por frontend.
      * @return array{token: string, usuario: array<string, mixed>}
      * @throws RuntimeException Si las credenciales son invalidas.
      */
-    public function login(string $usuario, string $password, string $ipCliente = ''): array
+    public function login(
+        string $usuario,
+        string $password,
+        string $ipCliente = '',
+        string $dispositivoCliente = ''
+    ): array
     {
         $this->aplicarPoliticasSeguridad();
 
         $usuarioRateLimit = $this->normalizarUsuarioRateLimit($usuario);
         $ipRateLimit = $this->normalizarIpRateLimit($ipCliente);
+        $dispositivoRateLimit = $this->normalizarDispositivoRateLimit($dispositivoCliente);
+        $scopeRateLimit = $this->resolverScopeRateLimit($ipRateLimit, $dispositivoRateLimit);
 
         $this->loginIntentoDAO->purgarExpirados();
-        $estadoBloqueo = $this->loginIntentoDAO->getBlockStatus($usuarioRateLimit, $ipRateLimit);
-
-        if ($estadoBloqueo['bloqueado']) {
-            $minutos = max(1, (int) ceil($estadoBloqueo['segundos_restantes'] / 60));
-            throw new RuntimeException('Demasiados intentos fallidos. Intente nuevamente en ' . $minutos . ' minuto(s).');
-        }
+        $this->validarBloqueoRateLimit($usuarioRateLimit, $scopeRateLimit);
 
         $user = $this->usuarioDAO->findByUsuario($usuario);
 
         if ($user === null) {
-            $this->loginIntentoDAO->registrarFallo($usuarioRateLimit, $ipRateLimit);
+            $this->registrarFalloRateLimit($usuarioRateLimit, $scopeRateLimit);
             throw new RuntimeException('Credenciales invalidas.');
         }
 
         if ($this->usuarioDAO->isPasswordExpired($user)) {
+            $this->registrarFalloRateLimit($usuarioRateLimit, $scopeRateLimit);
             $this->usuarioDAO->deactivate($user->id);
             $this->tokenDAO->deleteByUsuarioId($user->id);
             throw new RuntimeException('La contrasena expiro. El usuario fue desactivado, solicite reactivacion al administrador.');
         }
 
         if (!$user->activo) {
+            $this->registrarFalloRateLimit($usuarioRateLimit, $scopeRateLimit);
             throw new RuntimeException('La cuenta de usuario esta desactivada.');
         }
 
         if (!password_verify($password, $user->passwordHash)) {
-            $this->loginIntentoDAO->registrarFallo($usuarioRateLimit, $ipRateLimit);
+            $this->registrarFalloRateLimit($usuarioRateLimit, $scopeRateLimit);
             throw new RuntimeException('Credenciales invalidas.');
         }
 
         // Login exitoso: limpiar contador de intentos.
-        $this->loginIntentoDAO->limpiarIntentos($usuarioRateLimit, $ipRateLimit);
+        $this->limpiarRateLimit($usuarioRateLimit, $scopeRateLimit);
 
         // Generar token
         $tokenPlano = bin2hex(random_bytes(32));
@@ -198,9 +205,111 @@ final class AuthService
         $valor = trim($ip);
 
         if ($valor !== '' && filter_var($valor, FILTER_VALIDATE_IP)) {
+            if ($valor === '::1' || $valor === '0:0:0:0:0:0:0:1') {
+                return '127.0.0.1';
+            }
+
+            if (str_starts_with(strtolower($valor), '::ffff:')) {
+                $posibleIpv4 = substr($valor, 7);
+                if ($posibleIpv4 !== '' && filter_var($posibleIpv4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    return $posibleIpv4;
+                }
+            }
+
             return $valor;
         }
 
         return '0.0.0.0';
+    }
+
+    /**
+     * @param string $dispositivo
+     * @return string
+     */
+    private function normalizarDispositivoRateLimit(string $dispositivo): string
+    {
+        $valor = trim($dispositivo);
+        if ($valor === '') {
+            return '';
+        }
+
+        if (strlen($valor) > 120) {
+            $valor = substr($valor, 0, 120);
+        }
+
+        if (!preg_match('/^[A-Za-z0-9._:-]+$/', $valor)) {
+            return '';
+        }
+
+        return strtolower($valor);
+    }
+
+    /**
+     * Resuelve la clave de scope para rate limit.
+     * Si hay ID de dispositivo se usa hash de IP+dispositivo para no bloquear
+     * a todos los clientes detras de la misma red.
+     *
+     * @param string $ipRateLimit
+     * @param string $dispositivoRateLimit
+     * @return string
+     */
+    private function resolverScopeRateLimit(string $ipRateLimit, string $dispositivoRateLimit): string
+    {
+        if ($dispositivoRateLimit === '') {
+            return $ipRateLimit;
+        }
+
+        return 'd:' . hash('sha1', $ipRateLimit . '|' . $dispositivoRateLimit);
+    }
+
+    /**
+     * Valida bloqueo por usuario+scope y tambien por scope global.
+     *
+     * @param string $usuarioRateLimit
+     * @param string $scopeRateLimit
+     * @return void
+     */
+    private function validarBloqueoRateLimit(string $usuarioRateLimit, string $scopeRateLimit): void
+    {
+        $estadoUsuarioScope = $this->loginIntentoDAO->getBlockStatus($usuarioRateLimit, $scopeRateLimit);
+        $estadoScopeGlobal = $this->loginIntentoDAO->getBlockStatus(self::RATE_LIMIT_CLIENT_SCOPE_USER, $scopeRateLimit);
+
+        if (!$estadoUsuarioScope['bloqueado'] && !$estadoScopeGlobal['bloqueado']) {
+            return;
+        }
+
+        $segundosRestantes = max(
+            (int) ($estadoUsuarioScope['segundos_restantes'] ?? 0),
+            (int) ($estadoScopeGlobal['segundos_restantes'] ?? 0)
+        );
+        $minutos = max(1, (int) ceil($segundosRestantes / 60));
+
+        throw new RuntimeException('Demasiados intentos fallidos. Intente nuevamente en ' . $minutos . ' minuto(s).');
+    }
+
+    /**
+     * Registra fallo de login en scope usuario+cliente y en scope global de cliente.
+     *
+     * @param string $usuarioRateLimit
+     * @param string $scopeRateLimit
+     * @return void
+     */
+    private function registrarFalloRateLimit(string $usuarioRateLimit, string $scopeRateLimit): void
+    {
+        $this->loginIntentoDAO->registrarFallo($usuarioRateLimit, $scopeRateLimit);
+        $this->loginIntentoDAO->registrarFallo(self::RATE_LIMIT_CLIENT_SCOPE_USER, $scopeRateLimit);
+    }
+
+    /**
+     * Limpia contadores de login al autenticar correctamente.
+     *
+     * @param string $usuarioRateLimit
+     * @param string $scopeRateLimit
+     * @return void
+     */
+    private function limpiarRateLimit(string $usuarioRateLimit, string $scopeRateLimit): void
+    {
+        $this->loginIntentoDAO->limpiarIntentos($usuarioRateLimit, $scopeRateLimit);
+        $this->loginIntentoDAO->limpiarIntentos(self::RATE_LIMIT_CLIENT_SCOPE_USER, $scopeRateLimit);
     }
 }
