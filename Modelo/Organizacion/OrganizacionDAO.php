@@ -262,18 +262,21 @@ final class OrganizacionDAO
      * @param string      $tipoOrganizacion
      * @param string      $nombreOrganizacion
      * @param string|null $correoContacto
+     * @param bool        $activa
      * @return bool
      */
     public function update(
         int $id,
         string $tipoOrganizacion,
         string $nombreOrganizacion,
-        ?string $correoContacto
+        ?string $correoContacto,
+        bool $activa
     ): bool {
         $sql = "UPDATE organizaciones
                 SET tipo_organizacion = :tipo_organizacion,
                     nombre_organizacion = :nombre_organizacion,
-                    correo_contacto = :correo_contacto
+                    correo_contacto = :correo_contacto,
+                    activa = :activa
                 WHERE id = :id";
 
         $stmt = $this->pdo->prepare($sql);
@@ -281,6 +284,7 @@ final class OrganizacionDAO
             ':tipo_organizacion' => $tipoOrganizacion,
             ':nombre_organizacion' => $nombreOrganizacion,
             ':correo_contacto' => $correoContacto,
+            ':activa' => $activa ? 1 : 0,
             ':id' => $id
         ]);
     }
@@ -354,4 +358,3 @@ final class OrganizacionDAO
         }
     }
 }
-

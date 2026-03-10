@@ -85,3 +85,11 @@ Soporte operativo/documental B7-T03:
 - Backend: listo para preproduccion nacional.
 - Produccion final: condicionada a ejecucion operativa de cutover aprobada por owner.
 
+## Notas de pulido post-B7 (2026-03-10)
+
+- Sin cambio de estados `[ ]/[~]/[x]` de tickets cerrados.
+- Ajuste de contrato en B3 (sin reapertura de fase):
+  - `PUT /v2/superadmin/organizaciones/{organizacion_id}` ahora admite `activa`.
+- Hardening de validaciones superadmin:
+  - nombres sin numeros (rango 5-30),
+  - correos con validacion mas estricta (maximo 30).

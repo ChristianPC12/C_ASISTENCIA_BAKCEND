@@ -36,6 +36,10 @@ Evidencia B7:
 - CORS endurecido:
   - `Config/Global.php` usa `CORS_ALLOWED_ORIGINS` configurable (sin `*` por defecto).
   - `Middleware/CorsMiddleware.php` valida origen y bloquea preflight no permitido.
+- Superadmin (pulido post-B7):
+  - `PUT /v2/superadmin/organizaciones/{organizacion_id}` permite editar `activa`.
+  - validacion de nombre de organizacion y nombre de admin temporal sin numeros (rango 5-30 caracteres).
+  - validacion de correos (`correo_contacto` / `correo_destino`) mas estricta (maximo 30 caracteres).
 - Lint completo de backend:
   - `php -l` OK en todo el proyecto.
 - Re-ejecucion de scripts B7:
@@ -57,4 +61,3 @@ Evidencia B7:
 
 - GO tecnico para preproduccion.
 - Produccion final condicionada a aprobacion operativa del owner.
-

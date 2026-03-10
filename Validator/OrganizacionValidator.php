@@ -8,6 +8,14 @@ declare(strict_types=1);
  */
 final class OrganizacionValidator
 {
+    private const NOMBRE_MIN = 5;
+    private const NOMBRE_MAX = 30;
+    private const NOMBRE_ADMIN_MAX = 30;
+    private const EMAIL_MAX = 30;
+
+    private const NOMBRE_REGEX = "/^(?!.*\\d)[\\p{L}\\s\\.,\\-\\'\\(\\)]+$/u";
+    private const EMAIL_STRICT_REGEX = "/^(?=.{1,30}$)[A-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])(?:\\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9]))+$/i";
+
     /**
      * Valida filtros de listado.
      *
@@ -71,7 +79,8 @@ final class OrganizacionValidator
         return [
             'tipo_organizacion' => self::validateTipo($data['tipo_organizacion'] ?? null, true),
             'nombre_organizacion' => self::validateNombre($data['nombre_organizacion'] ?? null),
-            'correo_contacto' => self::validateCorreo($data['correo_contacto'] ?? null)
+            'correo_contacto' => self::validateCorreo($data['correo_contacto'] ?? null),
+            'activa' => self::validateActiva($data['activa'] ?? null, false)
         ];
     }
 
@@ -89,8 +98,11 @@ final class OrganizacionValidator
 
         $nombreCompleto = Sanitizer::cleanString($data['nombre_completo']);
         $nombreLen = strlen($nombreCompleto);
-        if ($nombreLen < 3 || $nombreLen > 120) {
-            throw new InvalidArgumentException('El nombre completo debe tener entre 3 y 120 caracteres.');
+        if ($nombreLen < self::NOMBRE_MIN || $nombreLen > self::NOMBRE_ADMIN_MAX) {
+            throw new InvalidArgumentException('El nombre completo debe tener entre 5 y 30 caracteres.');
+        }
+        if (preg_match(self::NOMBRE_REGEX, $nombreCompleto) !== 1) {
+            throw new InvalidArgumentException('El nombre completo no permite numeros ni simbolos no validos.');
         }
 
         if (!isset($data['usuario']) || !is_string($data['usuario'])) {
@@ -204,8 +216,11 @@ final class OrganizacionValidator
 
         $nombre = Sanitizer::cleanString($value);
         $len = strlen($nombre);
-        if ($len < 3 || $len > 160) {
-            throw new InvalidArgumentException('El nombre de organizacion debe tener entre 3 y 160 caracteres.');
+        if ($len < self::NOMBRE_MIN || $len > self::NOMBRE_MAX) {
+            throw new InvalidArgumentException('El nombre de organizacion debe tener entre 5 y 30 caracteres.');
+        }
+        if (preg_match(self::NOMBRE_REGEX, $nombre) !== 1) {
+            throw new InvalidArgumentException('El nombre de organizacion no permite numeros ni simbolos no validos.');
         }
 
         return $nombre;
@@ -226,11 +241,15 @@ final class OrganizacionValidator
         }
 
         $correo = strtolower(Sanitizer::cleanString($value));
-        if (strlen($correo) > 160) {
-            throw new InvalidArgumentException('El correo de contacto no puede superar 160 caracteres.');
+        if (strlen($correo) > self::EMAIL_MAX) {
+            throw new InvalidArgumentException('El correo de contacto no puede superar 30 caracteres.');
         }
 
-        if (filter_var($correo, FILTER_VALIDATE_EMAIL) === false) {
+        if (
+            strpos($correo, '..') !== false
+            || preg_match(self::EMAIL_STRICT_REGEX, $correo) !== 1
+            || filter_var($correo, FILTER_VALIDATE_EMAIL) === false
+        ) {
             throw new InvalidArgumentException('El correo de contacto no tiene un formato valido.');
         }
 
@@ -252,15 +271,45 @@ final class OrganizacionValidator
         }
 
         $correo = strtolower(Sanitizer::cleanString($value));
-        if (strlen($correo) > 160) {
-            throw new InvalidArgumentException('El correo destino no puede superar 160 caracteres.');
+        if (strlen($correo) > self::EMAIL_MAX) {
+            throw new InvalidArgumentException('El correo destino no puede superar 30 caracteres.');
         }
 
-        if (filter_var($correo, FILTER_VALIDATE_EMAIL) === false) {
+        if (
+            strpos($correo, '..') !== false
+            || preg_match(self::EMAIL_STRICT_REGEX, $correo) !== 1
+            || filter_var($correo, FILTER_VALIDATE_EMAIL) === false
+        ) {
             throw new InvalidArgumentException('El correo destino no tiene un formato valido.');
         }
 
         return $correo;
+    }
+
+    /**
+     * @param mixed $value
+     * @param bool  $required
+     * @return bool|null
+     */
+    private static function validateActiva(mixed $value, bool $required): ?bool
+    {
+        if ($value === null || $value === '') {
+            if ($required) {
+                throw new InvalidArgumentException('El campo "activa" es obligatorio.');
+            }
+            return null;
+        }
+
+        if (!is_bool($value) && !is_numeric($value) && !is_string($value)) {
+            throw new InvalidArgumentException('El campo "activa" debe ser booleano.');
+        }
+
+        $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($parsed === null) {
+            throw new InvalidArgumentException('El campo "activa" debe ser booleano.');
+        }
+
+        return (bool) $parsed;
     }
 
     /**

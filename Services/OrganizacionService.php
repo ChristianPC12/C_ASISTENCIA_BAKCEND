@@ -147,6 +147,9 @@ final class OrganizacionService
         $nuevoTipo = (string) $data['tipo_organizacion'];
         $nuevoNombre = (string) $data['nombre_organizacion'];
         $nuevoCorreo = $data['correo_contacto'] ?? null;
+        $nuevaActiva = array_key_exists('activa', $data) && is_bool($data['activa'])
+            ? $data['activa']
+            : $existente->activa;
 
         if ($this->organizacionDAO->existsByNombreEnCampoTipo(
             $existente->campoId,
@@ -162,7 +165,8 @@ final class OrganizacionService
                 $organizacionId,
                 $nuevoTipo,
                 $nuevoNombre,
-                is_string($nuevoCorreo) ? $nuevoCorreo : null
+                is_string($nuevoCorreo) ? $nuevoCorreo : null,
+                $nuevaActiva
             );
         } catch (\Throwable $e) {
             if ($this->esConflictoDuplicado($e)) {
@@ -434,4 +438,3 @@ final class OrganizacionService
         return null;
     }
 }
-

@@ -42,13 +42,19 @@ Backend tenant-aware nacional para multiples organizaciones (IGLESIA/GRUPO), con
   - `.agents/escalabilidad/EVIDENCIA_B7_T03_CHECKLIST_SALIDA_2026-03-10.md`
   - `.agents/escalabilidad/CHECKLIST_SALIDA_PRODUCCION_B7_T03.md`
 
-## 4) Riesgos residuales
+## 4) Ajustes de pulido post-B7 (2026-03-10)
+
+- superadmin update de organizacion admite cambio de estado `activa` sin abrir nueva fase.
+- validaciones mas estrictas en superadmin:
+  - nombres sin numeros (rango 5-30),
+  - correo con formato reforzado y limite de 30.
+
+## 5) Riesgos residuales
 
 - ejecucion operativa real de cutover y rollback depende del owner/infra.
 - monitoreo post-cutover debe activarse en ventana productiva.
 
-## 5) Decision de salida
+## 6) Decision de salida
 
 - backend listo tecnicamente para preproduccion nacional.
 - produccion final requiere validacion operativa de ventana y backup real.
-
