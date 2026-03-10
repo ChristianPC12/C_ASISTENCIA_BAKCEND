@@ -10,7 +10,7 @@ final class PresentacionDAO
     private PDO $pdo;
 
     /** @var string */
-    private const BASE_COLUMNS = "p.id, p.usuario_id, p.anio, p.mes, p.culto_codigo,
+    private const BASE_COLUMNS = "p.id, p.organizacion_id, p.usuario_id, p.anio, p.mes, p.culto_codigo,
         p.filtros_json, p.metricas_json, p.prompt_version, p.prompt_bloqueado,
         p.modelo, p.presentacion_json, p.creado_en,
         u.nombre_completo AS usuario_nombre, u.usuario AS usuario_login";
@@ -26,14 +26,15 @@ final class PresentacionDAO
     public function insert(array $data): int
     {
         $sql = "INSERT INTO presentaciones
-            (usuario_id, anio, mes, culto_codigo, filtros_json, metricas_json,
+            (organizacion_id, usuario_id, anio, mes, culto_codigo, filtros_json, metricas_json,
              prompt_version, prompt_bloqueado, modelo, ia_response_id, presentacion_json)
             VALUES
-            (:usuario_id, :anio, :mes, :culto_codigo, :filtros_json, :metricas_json,
+            (:organizacion_id, :usuario_id, :anio, :mes, :culto_codigo, :filtros_json, :metricas_json,
              :prompt_version, :prompt_bloqueado, :modelo, :ia_response_id, :presentacion_json)";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
+            ':organizacion_id' => (int) $data['organizacion_id'],
             ':usuario_id' => (int) $data['usuario_id'],
             ':anio' => (int) $data['anio'],
             ':mes' => (int) $data['mes'],
@@ -50,16 +51,20 @@ final class PresentacionDAO
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function findById(int $id): ?PresentacionDTO
+    public function findById(int $id, int $organizacionId): ?PresentacionDTO
     {
         $sql = "SELECT " . self::BASE_COLUMNS . "
             FROM presentaciones p
             INNER JOIN usuarios u ON u.id = p.usuario_id
             WHERE p.id = :id
+              AND p.organizacion_id = :organizacion_id
             LIMIT 1";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([':id' => $id]);
+        $stmt->execute([
+            ':id' => $id,
+            ':organizacion_id' => $organizacionId
+        ]);
         $row = $stmt->fetch();
 
         if ($row === false) {
@@ -69,15 +74,17 @@ final class PresentacionDAO
         return PresentacionMapper::fromRow($row);
     }
 
-    public function existsByPeriodoCulto(int $anio, int $mes, ?string $cultoCodigo): bool
+    public function existsByPeriodoCulto(int $organizacionId, int $anio, int $mes, ?string $cultoCodigo): bool
     {
         $sql = "SELECT COUNT(id)
             FROM presentaciones
-            WHERE anio = :anio
+            WHERE organizacion_id = :organizacion_id
+              AND anio = :anio
               AND mes = :mes
               AND (culto_codigo <=> :culto_codigo)";
 
         $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':organizacion_id', $organizacionId, PDO::PARAM_INT);
         $stmt->bindValue(':anio', $anio, PDO::PARAM_INT);
         $stmt->bindValue(':mes', $mes, PDO::PARAM_INT);
         if ($cultoCodigo === null) {
@@ -94,10 +101,20 @@ final class PresentacionDAO
      * @param array<string, mixed> $filtros
      * @return array<int, PresentacionDTO>
      */
-    public function findAll(array $filtros, int $usuarioId, bool $esAdmin, int $limit, int $offset): array
+    public function findAll(
+        array $filtros,
+        int $usuarioId,
+        bool $esAdmin,
+        int $organizacionId,
+        int $limit,
+        int $offset
+    ): array
     {
         $where = [];
         $params = [];
+
+        $where[] = 'p.organizacion_id = :organizacion_id';
+        $params[':organizacion_id'] = $organizacionId;
 
         if (!$esAdmin) {
             $where[] = 'p.usuario_id = :usuario_id_scope';
@@ -153,10 +170,13 @@ final class PresentacionDAO
     /**
      * @param array<string, mixed> $filtros
      */
-    public function countAll(array $filtros, int $usuarioId, bool $esAdmin): int
+    public function countAll(array $filtros, int $usuarioId, bool $esAdmin, int $organizacionId): int
     {
         $where = [];
         $params = [];
+
+        $where[] = 'organizacion_id = :organizacion_id';
+        $params[':organizacion_id'] = $organizacionId;
 
         if (!$esAdmin) {
             $where[] = 'usuario_id = :usuario_id_scope';

@@ -20,17 +20,19 @@ final class TokenDAO
      * Inserta un nuevo token.
      *
      * @param int    $usuarioId ID del usuario.
+     * @param int|null $organizacionId ID de organizacion del usuario.
      * @param string $tokenHash SHA-256 del token plano.
      * @return int ID del token insertado.
      */
-    public function insert(int $usuarioId, string $tokenHash, string $expiraEn): int
+    public function insert(int $usuarioId, ?int $organizacionId, string $tokenHash, string $expiraEn): int
     {
-        $sql = "INSERT INTO user_tokens (usuario_id, token_hash, ultimo_uso_en, expira_en)
-                VALUES (:usuario_id, :token_hash, NOW(), :expira_en)";
+        $sql = "INSERT INTO user_tokens (usuario_id, organizacion_id, token_hash, ultimo_uso_en, expira_en)
+                VALUES (:usuario_id, :organizacion_id, :token_hash, NOW(), :expira_en)";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':usuario_id' => $usuarioId,
+            ':organizacion_id' => $organizacionId,
             ':token_hash' => $tokenHash,
             ':expira_en'  => $expiraEn
         ]);
@@ -50,6 +52,26 @@ final class TokenDAO
 
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([':token_hash' => $tokenHash]);
+    }
+
+    /**
+     * Elimina un token por hash y tenant.
+     *
+     * @param string $tokenHash
+     * @param int    $organizacionId
+     * @return bool
+     */
+    public function deleteByHashAndOrganizacion(string $tokenHash, int $organizacionId): bool
+    {
+        $sql = "DELETE FROM user_tokens
+                WHERE token_hash = :token_hash
+                  AND organizacion_id = :organizacion_id";
+
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([
+            ':token_hash' => $tokenHash,
+            ':organizacion_id' => $organizacionId
+        ]);
     }
 
     /**
@@ -116,6 +138,26 @@ final class TokenDAO
 
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([':token_hash' => $tokenHash]);
+    }
+
+    /**
+     * Sincroniza el tenant del token con el tenant del usuario autenticado.
+     *
+     * @param string $tokenHash
+     * @param int    $organizacionId
+     * @return bool
+     */
+    public function syncOrganizacionByHash(string $tokenHash, int $organizacionId): bool
+    {
+        $sql = "UPDATE user_tokens
+                SET organizacion_id = :organizacion_id
+                WHERE token_hash = :token_hash";
+
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([
+            ':organizacion_id' => $organizacionId,
+            ':token_hash'      => $tokenHash
+        ]);
     }
 
 }

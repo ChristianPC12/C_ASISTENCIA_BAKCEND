@@ -39,6 +39,8 @@ final class AuthController
             JsonResponse::send(200, true, 'Inicio de sesion exitoso.', $resultado);
         } catch (InvalidArgumentException $e) {
             JsonResponse::send(400, false, $e->getMessage());
+        } catch (\DomainException $e) {
+            JsonResponse::send(403, false, $e->getMessage());
         } catch (\RuntimeException $e) {
             $status = str_starts_with($e->getMessage(), 'Demasiados intentos fallidos') ? 429 : 401;
             JsonResponse::send($status, false, $e->getMessage());
@@ -62,7 +64,14 @@ final class AuthController
                 JsonResponse::send(400, false, 'Token no proporcionado.');
             }
 
-            $this->authService->logout($matches[1]);
+            $organizacionId = 0;
+            try {
+                $organizacionId = AuthContext::getOrganizacionId();
+            } catch (\RuntimeException $e) {
+                // SUPERADMIN global no tiene tenant asociado.
+                $organizacionId = 0;
+            }
+            $this->authService->logout($matches[1], $organizacionId);
 
             JsonResponse::send(200, true, 'Sesion cerrada correctamente.');
         } catch (\Throwable $e) {
@@ -83,6 +92,11 @@ final class AuthController
             $resultado = $this->authService->me($usuarioId);
 
             JsonResponse::send(200, true, 'Usuario autenticado.', $resultado);
+        } catch (\DomainException $e) {
+            JsonResponse::send(403, false, $e->getMessage());
+        } catch (\RuntimeException $e) {
+            $status = str_starts_with($e->getMessage(), 'No hay usuario autenticado') ? 401 : 404;
+            JsonResponse::send($status, false, $e->getMessage());
         } catch (\Throwable $e) {
             error_log('[AuthController::me] ' . $e->getMessage());
             JsonResponse::send(500, false, 'Error interno del servidor.');

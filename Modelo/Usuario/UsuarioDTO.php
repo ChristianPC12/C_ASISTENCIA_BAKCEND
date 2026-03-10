@@ -36,6 +36,27 @@ final class UsuarioDTO
     /** @var bool */
     public bool $activo;
 
+    /** @var int */
+    public int $organizacionId;
+
+    /** @var string */
+    public string $codigoInstancia;
+
+    /** @var string */
+    public string $tipoOrganizacion;
+
+    /** @var string */
+    public string $nombreOrganizacion;
+
+    /** @var bool */
+    public bool $organizacionActiva;
+
+    /** @var string */
+    public string $campoCodigo;
+
+    /** @var string */
+    public string $campoNombre;
+
     /** @var string */
     public string $creadoEn;
 

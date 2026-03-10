@@ -15,10 +15,14 @@ final class AsistenciaService
     /** @var CultoDAO */
     private CultoDAO $cultoDAO;
 
+    /** @var SetupDAO */
+    private SetupDAO $setupDAO;
+
     public function __construct()
     {
         $this->asistenciaDAO = new AsistenciaDAO();
         $this->cultoDAO      = new CultoDAO();
+        $this->setupDAO      = new SetupDAO();
     }
 
     /**
@@ -29,6 +33,7 @@ final class AsistenciaService
      */
     public function listar(array $filtros): array
     {
+        $organizacionId = AuthContext::getOrganizacionId();
         $filtrosDAO = [];
 
         // Convertir codigo de culto a culto_id
@@ -57,7 +62,7 @@ final class AsistenciaService
             $filtrosDAO['fecha_exacta'] = $this->normalizarFechaExacta((string) $filtros['fecha_exacta']);
         }
 
-        $registros = $this->asistenciaDAO->findAll($filtrosDAO);
+        $registros = $this->asistenciaDAO->findAll($filtrosDAO, $organizacionId);
         $resultado = [];
 
         foreach ($registros as $registro) {
@@ -130,6 +135,10 @@ final class AsistenciaService
         $totalVisitasGuayabo = 0;
         $seriesPorFecha = [];
         $frecuenciaNombres = [];
+        $metricasSuma = [];
+        $metricasMax = [];
+        $metricasMin = [];
+        $metricasCount = [];
 
         foreach ($registros as $registro) {
             $asistentes = (int) ($registro['total_asistentes'] ?? 0);
@@ -171,6 +180,42 @@ final class AsistenciaService
 
             $this->acumularNombres($frecuenciaNombres, (string) ($registro['nombres_visitas_barrio'] ?? ''));
             $this->acumularNombres($frecuenciaNombres, (string) ($registro['nombres_visitas_guayabo'] ?? ''));
+
+            $metricas = $registro['metricas'] ?? null;
+            if (is_array($metricas)) {
+                foreach ($metricas as $clave => $valor) {
+                    if (!is_string($clave)) {
+                        continue;
+                    }
+
+                    $numero = null;
+                    if (is_int($valor) || is_float($valor)) {
+                        $numero = (float) $valor;
+                    } elseif (is_string($valor) && preg_match('/^-?\d+(\.\d+)?$/', trim($valor)) === 1) {
+                        $numero = (float) $valor;
+                    }
+
+                    if ($numero === null) {
+                        continue;
+                    }
+
+                    if (!isset($metricasSuma[$clave])) {
+                        $metricasSuma[$clave] = 0.0;
+                        $metricasMax[$clave] = $numero;
+                        $metricasMin[$clave] = $numero;
+                        $metricasCount[$clave] = 0;
+                    }
+
+                    $metricasSuma[$clave] += $numero;
+                    $metricasCount[$clave]++;
+                    if ($numero > $metricasMax[$clave]) {
+                        $metricasMax[$clave] = $numero;
+                    }
+                    if ($numero < $metricasMin[$clave]) {
+                        $metricasMin[$clave] = $numero;
+                    }
+                }
+            }
         }
 
         ksort($seriesPorFecha);
@@ -213,6 +258,21 @@ final class AsistenciaService
                 $procedenciaBarrio,
                 $procedenciaGuayabo
             );
+
+        ksort($metricasSuma);
+        $metricasDinamicas = [];
+        foreach ($metricasSuma as $clave => $suma) {
+            $count = (int) ($metricasCount[$clave] ?? 0);
+            $promedioMetrica = $count > 0 ? round($suma / $count, 2) : 0.0;
+            $metricasDinamicas[] = [
+                'clave' => $clave,
+                'suma' => round($suma, 2),
+                'promedio' => $promedioMetrica,
+                'maximo' => round((float) ($metricasMax[$clave] ?? 0), 2),
+                'minimo' => round((float) ($metricasMin[$clave] ?? 0), 2),
+                'registros' => $count
+            ];
+        }
 
         return [
             'filtros_aplicados' => [
@@ -274,6 +334,7 @@ final class AsistenciaService
             'series' => [
                 'asistencia_por_fecha' => $serieAsistencia
             ],
+            'metricas_dinamicas' => $metricasDinamicas,
             'resumen_condensado' => $resumenCondensado
         ];
     }
@@ -399,7 +460,8 @@ final class AsistenciaService
      */
     public function obtenerPorId(int $id): array
     {
-        $registro = $this->asistenciaDAO->findById($id);
+        $organizacionId = AuthContext::getOrganizacionId();
+        $registro = $this->asistenciaDAO->findById($id, $organizacionId);
 
         if ($registro === null) {
             throw new RuntimeException('Registro de asistencia no encontrado.');
@@ -418,6 +480,8 @@ final class AsistenciaService
      */
     public function crear(array $data, int $registradoPor): array
     {
+        $organizacionId = AuthContext::getOrganizacionId();
+
         // Verificar que el culto existe
         $culto = $this->cultoDAO->findById($data['culto_id']);
         if ($culto === null) {
@@ -437,12 +501,23 @@ final class AsistenciaService
         }
 
         // Verificar duplicado: no puede haber otro registro del mismo culto en la misma fecha
-        if ($this->asistenciaDAO->existsByCultoFecha($data['culto_id'], $data['fecha'])) {
+        if ($this->asistenciaDAO->existsByCultoFecha($organizacionId, $data['culto_id'], $data['fecha'])) {
             throw new RuntimeException(
                 "Ya existe un registro de asistencia para el culto {$culto->nombre} en la fecha {$data['fecha']}."
             );
         }
 
+        $metricasConfigActivas = $this->obtenerMetricasConfigActivas($organizacionId);
+        $metricas = $this->normalizarMetricasEntrada($data, $metricasConfigActivas);
+        $data = $this->mapearMetricasAColumnasLegacy($data, $metricas);
+
+        $metricasJson = json_encode($metricas, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($metricasJson)) {
+            throw new RuntimeException('No se pudieron serializar las metricas del registro.');
+        }
+
+        $data['metricas_json'] = $metricasJson;
+        $data['organizacion_id'] = $organizacionId;
         $data['registrado_por'] = $registradoPor;
         $id = $this->asistenciaDAO->insert($data);
 
@@ -459,7 +534,8 @@ final class AsistenciaService
      */
     public function actualizar(int $id, array $data): array
     {
-        $registro = $this->asistenciaDAO->findById($id);
+        $organizacionId = AuthContext::getOrganizacionId();
+        $registro = $this->asistenciaDAO->findById($id, $organizacionId);
         if ($registro === null) {
             throw new RuntimeException('Registro de asistencia no encontrado.');
         }
@@ -481,13 +557,23 @@ final class AsistenciaService
         }
 
         // Verificar duplicado (excluyendo el registro actual)
-        if ($this->asistenciaDAO->existsByCultoFecha($data['culto_id'], $data['fecha'], $id)) {
+        if ($this->asistenciaDAO->existsByCultoFecha($organizacionId, $data['culto_id'], $data['fecha'], $id)) {
             throw new RuntimeException(
                 "Ya existe otro registro de asistencia para el culto {$culto->nombre} en la fecha {$data['fecha']}."
             );
         }
 
-        $this->asistenciaDAO->update($id, $data);
+        $metricasConfigActivas = $this->obtenerMetricasConfigActivas($organizacionId);
+        $metricas = $this->normalizarMetricasEntrada($data, $metricasConfigActivas);
+        $data = $this->mapearMetricasAColumnasLegacy($data, $metricas);
+
+        $metricasJson = json_encode($metricas, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($metricasJson)) {
+            throw new RuntimeException('No se pudieron serializar las metricas del registro.');
+        }
+
+        $data['metricas_json'] = $metricasJson;
+        $this->asistenciaDAO->update($id, $data, $organizacionId);
 
         return $this->obtenerPorId($id);
     }
@@ -501,11 +587,224 @@ final class AsistenciaService
      */
     public function eliminar(int $id): void
     {
-        $registro = $this->asistenciaDAO->findById($id);
+        $organizacionId = AuthContext::getOrganizacionId();
+        $registro = $this->asistenciaDAO->findById($id, $organizacionId);
         if ($registro === null) {
             throw new RuntimeException('Registro de asistencia no encontrado.');
         }
 
-        $this->asistenciaDAO->delete($id);
+        $this->asistenciaDAO->delete($id, $organizacionId);
+    }
+
+    /**
+     * Obtiene metricas activas configuradas para la organizacion.
+     *
+     * @param int $organizacionId
+     * @return array<int, array<string, mixed>>
+     */
+    private function obtenerMetricasConfigActivas(int $organizacionId): array
+    {
+        $metricas = $this->setupDAO->getMetricas($organizacionId);
+        $activas = [];
+
+        foreach ($metricas as $metrica) {
+            $habilitada = filter_var(
+                $metrica['habilitado'] ?? false,
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            );
+            if ($habilitada === true) {
+                $activas[] = $metrica;
+            }
+        }
+
+        return $activas;
+    }
+
+    /**
+     * Normaliza metricas de entrada usando configuracion activa del tenant.
+     *
+     * @param array<string, mixed>             $data
+     * @param array<int, array<string, mixed>> $metricasConfigActivas
+     * @return array<string, mixed>
+     */
+    private function normalizarMetricasEntrada(array $data, array $metricasConfigActivas): array
+    {
+        $entrada = [];
+        if (isset($data['metricas']) && is_array($data['metricas'])) {
+            foreach ($data['metricas'] as $clave => $valor) {
+                if (!is_string($clave)) {
+                    continue;
+                }
+                $claveNorm = strtolower(trim($clave));
+                if ($claveNorm !== '') {
+                    $entrada[$claveNorm] = $valor;
+                }
+            }
+        } else {
+            foreach ($data as $clave => $valor) {
+                if (!is_string($clave)) {
+                    continue;
+                }
+                $entrada[strtolower(trim($clave))] = $valor;
+            }
+        }
+
+        $normalizadas = [];
+        foreach ($metricasConfigActivas as $config) {
+            $clave = strtolower((string) ($config['clave'] ?? ''));
+            if ($clave === '') {
+                continue;
+            }
+
+            $valorEntrada = $entrada[$clave] ?? null;
+            if (is_string($valorEntrada)) {
+                $valorEntrada = trim($valorEntrada);
+            }
+
+            // Cast suave: numericos a int, texto se conserva.
+            if (is_numeric($valorEntrada) && !is_string($valorEntrada)) {
+                $valorEntrada = (int) $valorEntrada;
+            } elseif (is_string($valorEntrada) && preg_match('/^\d+$/', $valorEntrada) === 1) {
+                $valorEntrada = (int) $valorEntrada;
+            }
+
+            $obligatoria = filter_var(
+                $config['obligatorio'] ?? false,
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            ) === true;
+
+            if ($obligatoria && $this->esMetricaVacia($valorEntrada)) {
+                throw new InvalidArgumentException('La metrica "' . $clave . '" es obligatoria.');
+            }
+
+            $normalizadas[$clave] = $valorEntrada;
+        }
+
+        // Reglas de dependencia configuradas en setup.
+        foreach ($metricasConfigActivas as $config) {
+            $clave = strtolower((string) ($config['clave'] ?? ''));
+            $dependeDe = strtolower((string) ($config['depende_de_clave'] ?? ''));
+            $regla = strtoupper((string) ($config['regla_dependencia'] ?? ''));
+
+            if ($clave === '' || $dependeDe === '' || $regla === '') {
+                continue;
+            }
+
+            $valorPadre = $normalizadas[$dependeDe] ?? null;
+            $valorHijo = $normalizadas[$clave] ?? null;
+
+            if ($regla === 'SI_MAYOR_CERO') {
+                $padreEntero = $this->aEnteroNoNegativo($valorPadre);
+                if ($padreEntero > 0 && $this->esMetricaVacia($valorHijo)) {
+                    throw new InvalidArgumentException(
+                        'La metrica "' . $clave . '" es obligatoria cuando "' . $dependeDe . '" es mayor a cero.'
+                    );
+                }
+            } elseif ($regla === 'AMBOS_O_NINGUNO') {
+                $padreVacio = $this->esMetricaVacia($valorPadre);
+                $hijoVacio = $this->esMetricaVacia($valorHijo);
+                if ($padreVacio !== $hijoVacio) {
+                    throw new InvalidArgumentException(
+                        'Las metricas "' . $dependeDe . '" y "' . $clave . '" deben completarse ambas o ninguna.'
+                    );
+                }
+            }
+        }
+
+        // Reglas de consistencia historicas (compatibilidad v1).
+        $total = $this->aEnteroNoNegativo($normalizadas['total_asistentes'] ?? 0);
+        $ninos = $this->aEnteroNoNegativo($normalizadas['ninos'] ?? 0);
+        $jovenes = $this->aEnteroNoNegativo($normalizadas['jovenes'] ?? 0);
+        if ($total > 0 && $total < ($ninos + $jovenes)) {
+            throw new InvalidArgumentException(
+                'La metrica total_asistentes no puede ser menor que ninos + jovenes.'
+            );
+        }
+
+        $retiros = $this->aEnteroNoNegativo($normalizadas['retiros_antes_terminar'] ?? 0);
+        $quedaron = $this->aEnteroNoNegativo($normalizadas['se_quedaron_todo'] ?? 0);
+        if ($total > 0 && ($retiros + $quedaron) > $total) {
+            throw new InvalidArgumentException(
+                'La suma de retiros_antes_terminar y se_quedaron_todo no puede superar total_asistentes.'
+            );
+        }
+
+        return $normalizadas;
+    }
+
+    /**
+     * Mapea metricas dinamicas al esquema legacy para compatibilidad de consultas/reportes actuales.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $metricas
+     * @return array<string, mixed>
+     */
+    private function mapearMetricasAColumnasLegacy(array $data, array $metricas): array
+    {
+        $data['llegaron_antes_hora'] = $this->aEnteroNoNegativo($metricas['llegaron_antes_hora'] ?? 0);
+        $data['llegaron_despues_hora'] = $this->aEnteroNoNegativo($metricas['llegaron_despues_hora'] ?? 0);
+        $data['ninos'] = $this->aEnteroNoNegativo($metricas['ninos'] ?? 0);
+        $data['jovenes'] = $this->aEnteroNoNegativo($metricas['jovenes'] ?? 0);
+        $data['total_asistentes'] = $this->aEnteroNoNegativo($metricas['total_asistentes'] ?? 0);
+        $data['proc_barrio'] = $this->aEnteroNoNegativo($metricas['proc_barrio'] ?? 0);
+        $data['proc_guayabo'] = $this->aEnteroNoNegativo($metricas['proc_guayabo'] ?? 0);
+        $data['visitas_barrio'] = $this->aEnteroNoNegativo($metricas['visitas_barrio'] ?? 0);
+        $data['visitas_guayabo'] = $this->aEnteroNoNegativo($metricas['visitas_guayabo'] ?? 0);
+        $data['retiros_antes_terminar'] = $this->aEnteroNoNegativo($metricas['retiros_antes_terminar'] ?? 0);
+        $data['se_quedaron_todo'] = $this->aEnteroNoNegativo($metricas['se_quedaron_todo'] ?? 0);
+
+        $nombresBarrio = $metricas['nombres_visitas_barrio'] ?? null;
+        $data['nombres_visitas_barrio'] = is_string($nombresBarrio) && trim($nombresBarrio) !== ''
+            ? trim($nombresBarrio)
+            : null;
+
+        $nombresGuayabo = $metricas['nombres_visitas_guayabo'] ?? null;
+        $data['nombres_visitas_guayabo'] = is_string($nombresGuayabo) && trim($nombresGuayabo) !== ''
+            ? trim($nombresGuayabo)
+            : null;
+
+        $observaciones = $metricas['observaciones'] ?? ($data['observaciones'] ?? null);
+        $data['observaciones'] = is_string($observaciones) && trim($observaciones) !== ''
+            ? trim($observaciones)
+            : null;
+
+        return $data;
+    }
+
+    /**
+     * @param mixed $valor
+     * @return bool
+     */
+    private function esMetricaVacia(mixed $valor): bool
+    {
+        if ($valor === null) {
+            return true;
+        }
+
+        if (is_string($valor)) {
+            return trim($valor) === '';
+        }
+
+        return false;
+    }
+
+    /**
+     * @param mixed $valor
+     * @return int
+     */
+    private function aEnteroNoNegativo(mixed $valor): int
+    {
+        if ($valor === null || $valor === '') {
+            return 0;
+        }
+
+        if (!is_numeric($valor)) {
+            return 0;
+        }
+
+        $entero = (int) $valor;
+        return $entero >= 0 ? $entero : 0;
     }
 }

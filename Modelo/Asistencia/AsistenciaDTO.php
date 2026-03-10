@@ -71,6 +71,9 @@ final class AsistenciaDTO
     /** @var string|null */
     public ?string $observaciones;
 
+    /** @var array<string, mixed> */
+    public array $metricas;
+
     /** @var int */
     public int $registradoPor;
 

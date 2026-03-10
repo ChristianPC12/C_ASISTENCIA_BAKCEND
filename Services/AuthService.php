@@ -34,7 +34,7 @@ final class AuthService
      * @param string $password Password en texto plano.
      * @param string $ipCliente IP del cliente para rate limit.
      * @param string $dispositivoCliente Identificador de dispositivo enviado por frontend.
-     * @return array{token: string, usuario: array<string, mixed>}
+     * @return array<string, mixed>
      * @throws RuntimeException Si las credenciales son invalidas.
      */
     public function login(
@@ -78,8 +78,16 @@ final class AuthService
             throw new RuntimeException('Credenciales invalidas.');
         }
 
-        // Login exitoso: limpiar contador de intentos.
+        // Credenciales correctas: limpiar contador de intentos.
         $this->limpiarRateLimit($usuarioRateLimit, $scopeRateLimit);
+
+        // Validar tenant de la cuenta antes de emitir sesion.
+        try {
+            $this->validarTenantDisponible($user);
+        } catch (\DomainException $e) {
+            $this->tokenDAO->deleteByUsuarioId($user->id);
+            throw $e;
+        }
 
         // Generar token
         $tokenPlano = bin2hex(random_bytes(32));
@@ -93,19 +101,20 @@ final class AuthService
             ->format('Y-m-d H:i:s');
 
         // Insertar nuevo token
-        $this->tokenDAO->insert($user->id, $tokenHash, $expiraEn);
+        $this->tokenDAO->insert(
+            $user->id,
+            $user->organizacionId > 0 ? $user->organizacionId : null,
+            $tokenHash,
+            $expiraEn
+        );
+
+        $usuarioPayload = UsuarioMapper::toArray($user);
+        $usuarioPayload['password_expira_en'] = $this->resolverExpiracionPassword($user);
 
         return [
             'token'   => $tokenPlano,
-            'usuario' => [
-                'id'              => $user->id,
-                'nombre_completo' => $user->nombreCompleto,
-                'usuario'         => $user->usuario,
-                'rol'             => $user->rolNombre,
-                'activo'          => $user->activo,
-                'password_actualizada_en' => $user->passwordActualizadaEn,
-                'password_expira_en' => $this->resolverExpiracionPassword($user)
-            ],
+            'usuario' => $usuarioPayload,
+            'tenant'  => UsuarioMapper::tenantToArray($user),
             'session' => [
                 'expira_en' => $expiraEn,
                 'idle_timeout_minutos' => SESSION_IDLE_TIMEOUT_MINUTES
@@ -117,11 +126,18 @@ final class AuthService
      * Cierra la sesion revocando el token actual.
      *
      * @param string $tokenPlano Token Bearer enviado por el cliente.
+     * @param int    $organizacionId Tenant del usuario autenticado.
      * @return void
      */
-    public function logout(string $tokenPlano): void
+    public function logout(string $tokenPlano, int $organizacionId = 0): void
     {
         $tokenHash = hash('sha256', $tokenPlano);
+
+        if ($organizacionId > 0) {
+            $this->tokenDAO->deleteByHashAndOrganizacion($tokenHash, $organizacionId);
+            return;
+        }
+
         $this->tokenDAO->deleteByHash($tokenHash);
     }
 
@@ -142,7 +158,36 @@ final class AuthService
             throw new RuntimeException('Usuario no encontrado.');
         }
 
-        return UsuarioMapper::toArray($user);
+        $this->validarTenantDisponible($user);
+
+        $usuarioPayload = UsuarioMapper::toArray($user);
+        $usuarioPayload['password_expira_en'] = $this->resolverExpiracionPassword($user);
+        $usuarioPayload['tenant'] = UsuarioMapper::tenantToArray($user);
+
+        return $usuarioPayload;
+    }
+
+    /**
+     * Valida que la cuenta tenga tenant asignado y activo.
+     *
+     * @param UsuarioDTO $user
+     * @return void
+     */
+    private function validarTenantDisponible(UsuarioDTO $user): void
+    {
+        if ($user->rolNombre === 'SUPERADMIN') {
+            return;
+        }
+
+        if ($user->organizacionId <= 0 || $user->codigoInstancia === '') {
+            throw new \DomainException(
+                'La cuenta autenticada no tiene una organizacion valida asignada. Contacta al administrador.'
+            );
+        }
+
+        if ($user->organizacionActiva === false) {
+            throw new \DomainException('La organizacion de esta cuenta se encuentra inactiva.');
+        }
     }
 
     /**
@@ -152,6 +197,7 @@ final class AuthService
      */
     private function aplicarPoliticasSeguridad(): void
     {
+        $this->usuarioDAO->deactivateExpiredAdminTemporales();
         $this->usuarioDAO->deactivateExpiredPasswords();
         $this->tokenDAO->deleteByInvalidUsers();
         $this->tokenDAO->deleteExpiredSessions();

@@ -27,6 +27,7 @@ require_once __DIR__ . '/Utils/AuthContext.php';
 require_once __DIR__ . '/Middleware/ErrorMiddleware.php';
 require_once __DIR__ . '/Middleware/CorsMiddleware.php';
 require_once __DIR__ . '/Middleware/AuthMiddleware.php';
+require_once __DIR__ . '/Middleware/RoleMiddleware.php';
 
 // ============================================================
 // 4) Modelo: DTOs, Mappers, DAOs
@@ -59,6 +60,14 @@ require_once __DIR__ . '/Modelo/Presentacion/PresentacionDTO.php';
 require_once __DIR__ . '/Modelo/Presentacion/PresentacionMapper.php';
 require_once __DIR__ . '/Modelo/Presentacion/PresentacionDAO.php';
 
+// Organizacion
+require_once __DIR__ . '/Modelo/Organizacion/OrganizacionDTO.php';
+require_once __DIR__ . '/Modelo/Organizacion/OrganizacionMapper.php';
+require_once __DIR__ . '/Modelo/Organizacion/OrganizacionDAO.php';
+
+// Setup
+require_once __DIR__ . '/Modelo/Setup/SetupDAO.php';
+
 // ============================================================
 // 5) Validators
 // ============================================================
@@ -66,6 +75,8 @@ require_once __DIR__ . '/Validator/AuthValidator.php';
 require_once __DIR__ . '/Validator/UsuarioValidator.php';
 require_once __DIR__ . '/Validator/AsistenciaValidator.php';
 require_once __DIR__ . '/Validator/PresentacionValidator.php';
+require_once __DIR__ . '/Validator/OrganizacionValidator.php';
+require_once __DIR__ . '/Validator/SetupValidator.php';
 
 // ============================================================
 // 6) Services
@@ -76,6 +87,9 @@ require_once __DIR__ . '/Services/UsuarioService.php';
 require_once __DIR__ . '/Services/AsistenciaService.php';
 require_once __DIR__ . '/Services/AsistenciaExportService.php';
 require_once __DIR__ . '/Services/PresentacionService.php';
+require_once __DIR__ . '/Services/CorreoService.php';
+require_once __DIR__ . '/Services/OrganizacionService.php';
+require_once __DIR__ . '/Services/SetupService.php';
 
 // ============================================================
 // 7) Controllers
@@ -85,6 +99,8 @@ require_once __DIR__ . '/Controller/CultoController.php';
 require_once __DIR__ . '/Controller/UsuarioController.php';
 require_once __DIR__ . '/Controller/AsistenciaController.php';
 require_once __DIR__ . '/Controller/PresentacionController.php';
+require_once __DIR__ . '/Controller/SuperadminOrganizacionController.php';
+require_once __DIR__ . '/Controller/SetupController.php';
 
 // ============================================================
 // 8) Routers
@@ -94,6 +110,8 @@ require_once __DIR__ . '/Router/CultoRoutes.php';
 require_once __DIR__ . '/Router/UsuarioRoutes.php';
 require_once __DIR__ . '/Router/AsistenciaRoutes.php';
 require_once __DIR__ . '/Router/PresentacionRoutes.php';
+require_once __DIR__ . '/Router/SuperadminRoutes.php';
+require_once __DIR__ . '/Router/SetupRoutes.php';
 
 // ============================================================
 // EJECUCION
@@ -125,6 +143,8 @@ if ($uri === '') {
 
 // Intentar resolver la ruta en cada grupo de rutas
 $resolved = AuthRoutes::resolve($method, $uri)
+         || SuperadminRoutes::resolve($method, $uri)
+         || SetupRoutes::resolve($method, $uri)
          || CultoRoutes::resolve($method, $uri)
          || AsistenciaRoutes::resolve($method, $uri)
          || PresentacionRoutes::resolve($method, $uri)

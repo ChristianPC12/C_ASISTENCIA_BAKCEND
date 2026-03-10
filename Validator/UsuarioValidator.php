@@ -103,6 +103,76 @@ final class UsuarioValidator
     }
 
     /**
+     * Valida payload para configuracion de cupos por rol.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public static function validateCuposRoles(array $data): array
+    {
+        if (!isset($data['cupos']) || !is_array($data['cupos'])) {
+            throw new InvalidArgumentException('El campo "cupos" es obligatorio y debe ser una lista.');
+        }
+
+        if (count($data['cupos']) < 1) {
+            throw new InvalidArgumentException('Debe enviar al menos un cupo por rol.');
+        }
+
+        $cupos = [];
+        $roles = [];
+
+        foreach (array_values($data['cupos']) as $item) {
+            if (!is_array($item)) {
+                throw new InvalidArgumentException('Cada elemento de "cupos" debe ser un objeto valido.');
+            }
+
+            if (!isset($item['rol_nombre']) || !is_string($item['rol_nombre'])) {
+                throw new InvalidArgumentException('Cada cupo requiere "rol_nombre".');
+            }
+
+            $rolNombre = strtoupper(Sanitizer::cleanString($item['rol_nombre']));
+            if (preg_match('/^[A-Z_]{3,40}$/', $rolNombre) !== 1) {
+                throw new InvalidArgumentException('Cada "rol_nombre" debe tener formato valido (A-Z y guion bajo).');
+            }
+
+            if ($rolNombre === 'SUPERADMIN') {
+                throw new InvalidArgumentException('No se permite configurar cupos para SUPERADMIN en instancia.');
+            }
+
+            if (isset($roles[$rolNombre])) {
+                throw new InvalidArgumentException('No se permiten roles duplicados en "cupos".');
+            }
+            $roles[$rolNombre] = true;
+
+            if (!array_key_exists('cupo_maximo', $item) || !is_numeric($item['cupo_maximo'])) {
+                throw new InvalidArgumentException('Cada cupo requiere "cupo_maximo" numerico.');
+            }
+
+            $cupoMaximo = (int) $item['cupo_maximo'];
+            if ($cupoMaximo < 0 || $cupoMaximo > 999) {
+                throw new InvalidArgumentException('Cada "cupo_maximo" debe estar entre 0 y 999.');
+            }
+
+            $activo = true;
+            if (array_key_exists('activo', $item)) {
+                $parsed = filter_var($item['activo'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($parsed === null) {
+                    throw new InvalidArgumentException('Cada "activo" de cupo debe ser booleano.');
+                }
+                $activo = (bool) $parsed;
+            }
+
+            $cupos[] = [
+                'rol_nombre' => $rolNombre,
+                'cupo_maximo' => $cupoMaximo,
+                'activo' => $activo
+            ];
+        }
+
+        return ['cupos' => $cupos];
+    }
+
+    /**
      * Valida politicas de password fuerte.
      *
      * @param string $password

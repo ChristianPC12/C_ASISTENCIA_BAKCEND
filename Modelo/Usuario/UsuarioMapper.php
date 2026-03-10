@@ -26,6 +26,13 @@ final class UsuarioMapper
         $dto->rolId           = (int) $row['rol_id'];
         $dto->rolNombre       = (string) ($row['rol_nombre'] ?? '');
         $dto->activo          = (bool) ($row['activo'] ?? true);
+        $dto->organizacionId  = (int) ($row['organizacion_id'] ?? 0);
+        $dto->codigoInstancia = (string) ($row['codigo_instancia'] ?? '');
+        $dto->tipoOrganizacion = (string) ($row['tipo_organizacion'] ?? '');
+        $dto->nombreOrganizacion = (string) ($row['nombre_organizacion'] ?? '');
+        $dto->organizacionActiva = (bool) ($row['organizacion_activa'] ?? false);
+        $dto->campoCodigo     = (string) ($row['campo_codigo'] ?? '');
+        $dto->campoNombre     = (string) ($row['campo_nombre'] ?? '');
         $dto->creadoEn        = (string) ($row['creado_en'] ?? '');
         $dto->actualizadoEn   = (string) ($row['actualizado_en'] ?? '');
 
@@ -47,12 +54,39 @@ final class UsuarioMapper
             'rol_id'           => $dto->rolId,
             'rol'              => $dto->rolNombre,
             'activo'           => $dto->activo,
+            'organizacion_id'  => $dto->organizacionId > 0 ? $dto->organizacionId : null,
+            'codigo_instancia' => $dto->codigoInstancia !== '' ? $dto->codigoInstancia : null,
+            'tipo_organizacion' => $dto->tipoOrganizacion !== '' ? $dto->tipoOrganizacion : null,
+            'nombre_organizacion' => $dto->nombreOrganizacion !== '' ? $dto->nombreOrganizacion : null,
+            'campo'            => $dto->campoCodigo !== '' ? $dto->campoCodigo : null,
+            'campo_nombre'     => $dto->campoNombre !== '' ? $dto->campoNombre : null,
+            'organizacion_activa' => $dto->organizacionActiva,
             'password_actualizada_en' => $dto->passwordActualizadaEn,
             'password_expira_en' => $dto->passwordExpiraEn !== ''
                 ? $dto->passwordExpiraEn
                 : self::calcularExpiracionPassword($dto->passwordActualizadaEn),
             'creado_en'        => $dto->creadoEn,
-            'actualizado_en'   => $dto->actualizadoEn
+            'actualizado_en'   => $dto->actualizadoEn,
+            'tenant'           => self::tenantToArray($dto)
+        ];
+    }
+
+    /**
+     * Convierte el bloque de tenant para respuestas de auth.
+     *
+     * @param UsuarioDTO $dto
+     * @return array<string, mixed>
+     */
+    public static function tenantToArray(UsuarioDTO $dto): array
+    {
+        return [
+            'organizacion_id'  => $dto->organizacionId > 0 ? $dto->organizacionId : null,
+            'codigo_instancia' => $dto->codigoInstancia !== '' ? $dto->codigoInstancia : null,
+            'tipo_organizacion' => $dto->tipoOrganizacion !== '' ? $dto->tipoOrganizacion : null,
+            'nombre_organizacion' => $dto->nombreOrganizacion !== '' ? $dto->nombreOrganizacion : null,
+            'campo'            => $dto->campoCodigo !== '' ? $dto->campoCodigo : null,
+            'campo_nombre'     => $dto->campoNombre !== '' ? $dto->campoNombre : null,
+            'activa'           => $dto->organizacionActiva
         ];
     }
 

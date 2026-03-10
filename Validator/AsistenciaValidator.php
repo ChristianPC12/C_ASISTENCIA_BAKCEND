@@ -5,16 +5,15 @@ declare(strict_types=1);
  * Clase AsistenciaValidator
  *
  * Valida los datos de entrada para registros de asistencia.
- * Solo valida/sanitiza; no toca BD ni logica de negocio.
+ * Soporta payload legacy fijo y payload dinamico por metricas.
  */
 final class AsistenciaValidator
 {
     /**
      * Valida los datos para crear o actualizar un registro de asistencia.
      *
-     * @param array<string, mixed> $data Datos del body JSON.
-     * @return array<string, mixed> Datos validados.
-     * @throws InvalidArgumentException Si algun campo es invalido.
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
      */
     public static function validate(array $data): array
     {
@@ -36,7 +35,20 @@ final class AsistenciaValidator
         }
         $validated['fecha'] = $data['fecha'];
 
-        // -- Contadores (todos deben ser enteros >= 0) --
+        // -- modo dinamico --
+        if (array_key_exists('metricas', $data)) {
+            $validated['metricas'] = self::validateMetricas($data['metricas']);
+
+            // observaciones en modo dinamico (opcional)
+            $validated['observaciones'] = null;
+            if (!empty($data['observaciones']) && is_string($data['observaciones'])) {
+                $validated['observaciones'] = Sanitizer::cleanString($data['observaciones']);
+            }
+
+            return $validated;
+        }
+
+        // -- modo legacy fijo --
         $contadores = [
             'llegaron_antes_hora',
             'llegaron_despues_hora',
@@ -64,7 +76,6 @@ final class AsistenciaValidator
             $validated[$campo] = $valor;
         }
 
-        // -- Reglas de consistencia --
         if ($validated['total_asistentes'] < ($validated['ninos'] + $validated['jovenes'])) {
             throw new InvalidArgumentException(
                 'El total de asistentes no puede ser menor que la suma de ninos y jovenes.'
@@ -78,7 +89,6 @@ final class AsistenciaValidator
             );
         }
 
-        // -- nombres de visitas (opcionales, texto libre) --
         $validated['nombres_visitas_barrio'] = null;
         if (!empty($data['nombres_visitas_barrio']) && is_string($data['nombres_visitas_barrio'])) {
             $validated['nombres_visitas_barrio'] = Sanitizer::cleanString($data['nombres_visitas_barrio']);
@@ -89,12 +99,72 @@ final class AsistenciaValidator
             $validated['nombres_visitas_guayabo'] = Sanitizer::cleanString($data['nombres_visitas_guayabo']);
         }
 
-        // -- observaciones (opcional) --
         $validated['observaciones'] = null;
         if (!empty($data['observaciones']) && is_string($data['observaciones'])) {
             $validated['observaciones'] = Sanitizer::cleanString($data['observaciones']);
         }
 
         return $validated;
+    }
+
+    /**
+     * Valida objeto dinamico de metricas.
+     *
+     * @param mixed $metricasRaw
+     * @return array<string, mixed>
+     */
+    private static function validateMetricas(mixed $metricasRaw): array
+    {
+        if (!is_array($metricasRaw)) {
+            throw new InvalidArgumentException('El campo "metricas" debe ser un objeto JSON.');
+        }
+
+        if ($metricasRaw === []) {
+            throw new InvalidArgumentException('El campo "metricas" no puede venir vacio.');
+        }
+
+        $metricas = [];
+        foreach ($metricasRaw as $clave => $valor) {
+            if (!is_string($clave)) {
+                throw new InvalidArgumentException('Cada clave de "metricas" debe ser texto.');
+            }
+
+            $claveNorm = strtolower(Sanitizer::cleanString($clave));
+            if ($claveNorm === '' || preg_match('/^[a-z0-9_]{2,80}$/', $claveNorm) !== 1) {
+                throw new InvalidArgumentException('Cada clave de "metricas" debe ser alfanumerica con guion bajo.');
+            }
+
+            if ($valor === null) {
+                $metricas[$claveNorm] = null;
+                continue;
+            }
+
+            if (is_bool($valor)) {
+                $metricas[$claveNorm] = $valor ? 1 : 0;
+                continue;
+            }
+
+            if (is_int($valor) || is_float($valor) || (is_string($valor) && preg_match('/^\d+$/', trim($valor)) === 1)) {
+                $numero = (int) $valor;
+                if ($numero < 0) {
+                    throw new InvalidArgumentException('Los valores numericos de "metricas" no pueden ser negativos.');
+                }
+                $metricas[$claveNorm] = $numero;
+                continue;
+            }
+
+            if (is_string($valor)) {
+                $texto = Sanitizer::cleanString($valor);
+                if (strlen($texto) > 1000) {
+                    throw new InvalidArgumentException('Los valores de texto en "metricas" no pueden exceder 1000 caracteres.');
+                }
+                $metricas[$claveNorm] = $texto;
+                continue;
+            }
+
+            throw new InvalidArgumentException('Cada valor de "metricas" debe ser numero, texto, booleano o null.');
+        }
+
+        return $metricas;
     }
 }

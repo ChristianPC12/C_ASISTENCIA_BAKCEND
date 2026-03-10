@@ -38,6 +38,7 @@ final class AsistenciaMapper
         $dto->retirosAntesTerminar = (int) $row['retiros_antes_terminar'];
         $dto->seQuedaronTodo       = (int) $row['se_quedaron_todo'];
         $dto->observaciones        = $row['observaciones'] !== null ? (string) $row['observaciones'] : null;
+        $dto->metricas             = self::parseMetricas($row);
         $dto->registradoPor        = (int) $row['registrado_por'];
         $dto->registradoPorNombre  = (string) ($row['registrado_por_nombre'] ?? '');
         $dto->creadoEn             = (string) $row['creado_en'];
@@ -76,10 +77,60 @@ final class AsistenciaMapper
             'retiros_antes_terminar' => $dto->retirosAntesTerminar,
             'se_quedaron_todo'       => $dto->seQuedaronTodo,
             'observaciones'          => $dto->observaciones,
+            'metricas'               => $dto->metricas,
             'registrado_por'         => $dto->registradoPor,
             'registrado_por_nombre'  => $dto->registradoPorNombre,
             'creado_en'              => $dto->creadoEn,
             'actualizado_en'         => $dto->actualizadoEn
+        ];
+    }
+
+    /**
+     * Reconstruye mapa dinamico de metricas por registro.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function parseMetricas(array $row): array
+    {
+        $raw = $row['metricas_json'] ?? null;
+        if (is_string($raw) && trim($raw) !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return self::buildLegacyMetricas($row);
+    }
+
+    /**
+     * Mapa legado para compatibilidad con registros historicos sin `metricas_json`.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function buildLegacyMetricas(array $row): array
+    {
+        return [
+            'llegaron_antes_hora' => (int) ($row['llegaron_antes_hora'] ?? 0),
+            'llegaron_despues_hora' => (int) ($row['llegaron_despues_hora'] ?? 0),
+            'ninos' => (int) ($row['ninos'] ?? 0),
+            'jovenes' => (int) ($row['jovenes'] ?? 0),
+            'total_asistentes' => (int) ($row['total_asistentes'] ?? 0),
+            'proc_barrio' => (int) ($row['proc_barrio'] ?? 0),
+            'proc_guayabo' => (int) ($row['proc_guayabo'] ?? 0),
+            'visitas_barrio' => (int) ($row['visitas_barrio'] ?? 0),
+            'nombres_visitas_barrio' => $row['nombres_visitas_barrio'] !== null
+                ? (string) $row['nombres_visitas_barrio']
+                : null,
+            'visitas_guayabo' => (int) ($row['visitas_guayabo'] ?? 0),
+            'nombres_visitas_guayabo' => $row['nombres_visitas_guayabo'] !== null
+                ? (string) $row['nombres_visitas_guayabo']
+                : null,
+            'retiros_antes_terminar' => (int) ($row['retiros_antes_terminar'] ?? 0),
+            'se_quedaron_todo' => (int) ($row['se_quedaron_todo'] ?? 0),
+            'observaciones' => $row['observaciones'] !== null ? (string) $row['observaciones'] : null
         ];
     }
 }

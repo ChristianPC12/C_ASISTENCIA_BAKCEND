@@ -12,6 +12,8 @@ final class PresentacionRoutes
 
         if ($method === 'GET' && $uri === '/presentaciones') {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new PresentacionController();
             $controller->listar();
             return true;
@@ -19,6 +21,8 @@ final class PresentacionRoutes
 
         if ($method === 'POST' && $uri === '/presentaciones/generar') {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new PresentacionController();
             $controller->generar();
             return true;
@@ -26,6 +30,8 @@ final class PresentacionRoutes
 
         if ($method === 'GET' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new PresentacionController();
             $controller->obtener((int) $matches[1]);
             return true;

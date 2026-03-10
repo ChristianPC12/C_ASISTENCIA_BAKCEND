@@ -16,9 +16,14 @@ define('DB_PASS', '');
 define('BASE_PATH', '/C_ASISTENCIA_BACKEND/C_ASISTENCIA_BAKCEND');
 
 // --- CORS ---
-define('CORS_ORIGIN', '*');
+// Configurable por entorno: CORS_ALLOWED_ORIGINS="http://app1.com,http://app2.com"
+$corsAllowedOrigins = getenv('CORS_ALLOWED_ORIGINS');
+if ($corsAllowedOrigins === false || trim($corsAllowedOrigins) === '') {
+    $corsAllowedOrigins = 'http://localhost,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173';
+}
+define('CORS_ALLOWED_ORIGINS', $corsAllowedOrigins);
 define('CORS_METHODS', 'GET, POST, PUT, DELETE, OPTIONS');
-define('CORS_HEADERS', 'Content-Type, Authorization');
+define('CORS_HEADERS', 'Content-Type, Authorization, X-Device-Id');
 
 // --- Seguridad ---
 define('PASSWORD_EXPIRY_DAYS', 30);

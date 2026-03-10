@@ -21,6 +21,8 @@ final class CultoRoutes
         // GET /cultos
         if ($method === 'GET' && $uri === '/cultos') {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new CultoController();
             $controller->listar();
             return true;

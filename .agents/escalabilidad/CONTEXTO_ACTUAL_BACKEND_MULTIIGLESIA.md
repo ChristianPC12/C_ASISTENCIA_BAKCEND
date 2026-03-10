@@ -1,50 +1,60 @@
-# Contexto Actual Backend Multiiglesia (2026-03-09)
+# Contexto Actual Backend Multiiglesia (2026-03-10)
 
-## Estado vigente
+## Estado backend vigente
 
-- Backend actual: PHP 8 sin framework, arquitectura Router -> Controller -> Service -> DAO.
-- Base de datos actual: `iglesia_asistencia` en modo single-tenant.
-- Roles implementados hoy: `ADMIN`, `SECRETARIO`.
-- Aislamiento por tenant: no implementado aun.
+- Backend: PHP 8 sin framework (Router -> Controller -> Service -> DAO).
+- Base: `iglesia_asistencia` en modo multi-tenant.
+- Roles activos: `SUPERADMIN`, `ADMIN`, `SECRETARIO`.
+- Estado de ejecucion: B0..B7 cerradas a nivel tecnico.
 
-## Implicacion directa del estado actual
+## Resultado funcional consolidado
 
-- Restriccion de unicidad de asistencia es global por `(culto_id, fecha)`.
-- Si dos iglesias intentan registrar mismo culto/fecha, hoy choca como duplicado.
-- Usuarios y sesiones no tienen `organizacion_id`.
+- Aislamiento tenant activo por `organizacion_id`.
+- Auth tenant-aware en login/me/logout y middleware.
+- API v2 de superadmin activa (alta/edicion organizaciones + admin temporal).
+- API v2 setup activa (estado/cultos/metricas/procedencias/finalizar).
+- Guard central `SETUP_REQUIRED` en modulos operativos.
+- Dominio dinamico de metricas en asistencia/estadisticas/presentaciones.
+- Cupos por rol por tenant + enforcement en usuarios.
+- Expiracion automatica de ADMIN temporal a 5 dias.
 
-## Objetivo de evolucion backend
+## Estado de hardening (B7)
 
-Migrar a modelo tenant-aware para permitir:
+- B7-T01: suite aislamiento runtime ejecutada OK.
+- B7-T02: migracion/rollback staging ejecutado OK.
+- B7-T03: checklist final y runbooks operativos documentados.
 
-- aislamiento total de datos por organizacion (iglesia/grupo),
-- onboarding de nuevas organizaciones por `SUPERADMIN`,
-- configuracion inicial de instancia antes de habilitar modulos operativos.
+Evidencia B7:
 
-## Fuente de verdad para ejecucion
+- `.agents/escalabilidad/EVIDENCIA_B7_T01_AISLAMIENTO_MULTI_TENANT_2026-03-09.md`
+- `.agents/escalabilidad/EVIDENCIA_B7_T02_MIGRACION_ROLLBACK_STAGING_2026-03-09.md`
+- `.agents/escalabilidad/EVIDENCIA_B7_T03_CHECKLIST_SALIDA_2026-03-10.md`
+- `.agents/escalabilidad/CHECKLIST_SALIDA_PRODUCCION_B7_T03.md`
 
-- `ROADMAP_BACKEND_MULTIIGLESIA.md` (detallado por fases y tareas).
+## Cambios recientes (2026-03-10)
 
-## Archivos backend criticos que se afectaran
+- CORS endurecido:
+  - `Config/Global.php` usa `CORS_ALLOWED_ORIGINS` configurable (sin `*` por defecto).
+  - `Middleware/CorsMiddleware.php` valida origen y bloquea preflight no permitido.
+- Lint completo de backend:
+  - `php -l` OK en todo el proyecto.
+- Re-ejecucion de scripts B7:
+  - aislamiento: OK
+  - migracion/rollback staging: OK
 
-- `Config/Global.php`
-- `Utils/AuthContext.php`
-- `Middleware/AuthMiddleware.php`
-- `Services/AuthService.php`
-- `Services/UsuarioService.php`
-- `Services/AsistenciaService.php`
-- `Services/PresentacionService.php`
-- `Modelo/Usuario/UsuarioDAO.php`
-- `Modelo/Token/TokenDAO.php`
-- `Modelo/Asistencia/AsistenciaDAO.php`
-- `Modelo/Presentacion/PresentacionDAO.php`
-- `Router/AuthRoutes.php`
-- `Router/UsuarioRoutes.php`
-- `Router/AsistenciaRoutes.php`
-- `Router/PresentacionRoutes.php`
+## Runbooks operativos disponibles
 
-## Notas de control
+- `.agents/escalabilidad/PLAN_BACKUP_CUTOVER_ROLLBACK_B7.md`
+- `.agents/escalabilidad/MONITOREO_POST_CUTOVER_B7.md`
+- `.agents/escalabilidad/MANUAL_INCIDENTES_B7.md`
 
-- Este archivo no describe features futuras como implementadas.
-- Cada cierre de fase debe reflejarse aqui con fecha real.
+## Riesgos residuales
+
+- Cutover productivo depende de ejecucion real de ventana de mantenimiento.
+- Token bearer sigue en modelo stateless (seguridad depende de higiene cliente/servidor).
+
+## Decision de gate
+
+- GO tecnico para preproduccion.
+- Produccion final condicionada a aprobacion operativa del owner.
 

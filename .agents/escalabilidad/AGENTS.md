@@ -1,48 +1,54 @@
 # Backend Escalabilidad - Agent Guide
 
-Este paquete de agentes define la ruta backend para escalar C_ASISTENCIA a un modelo multiiglesia/multigrupo con aislamiento por tenant.
+Este paquete define la ejecucion backend de la escalabilidad nacional por tickets.
 
 ## Objetivo
 
-- Guiar cambios por fases sin romper operacion actual.
-- Mantener trazabilidad de tareas y prioridades.
-- Evitar contradicciones entre backend, frontend y base de datos.
+- Ejecutar cambios incrementales y auditables.
+- Mantener aislamiento por tenant como regla no negociable.
+- Sincronizar contrato con frontend en cada avance.
 
-## Orden de lectura recomendado
+## Orden de lectura obligatorio
 
 1. `CONTEXTO_ACTUAL_BACKEND_MULTIIGLESIA.md`
 2. `ROADMAP_BACKEND_MULTIIGLESIA.md`
-3. `contexto_general.md`
-4. `Contexto_actual_bd.md`
+3. `TICKETS_BACKEND_MULTIIGLESIA.md`
+4. `contexto_general.md`
+5. `Contexto_actual_bd.md`
 
 ## Regla de activacion
 
-Usar estos agentes cuando la tarea incluya alguno de estos temas:
+Usar estos agentes cuando la tarea incluya:
 
-- superadmin
-- multitenancy / tenant isolation
-- migraciones para campo + iglesia/grupo
-- login tenant-aware
-- bloqueo de modulos por configuracion inicial
-- cuotas de usuarios por rol
-- onboarding por correo con credenciales temporales
+- tenant/multiiglesia/multigrupo,
+- superadmin y onboarding de instancias,
+- login tenant-aware,
+- bloqueo por setup inicial,
+- parametros dinamicos por organizacion,
+- cupos por rol,
+- correo de credenciales temporales.
+
+## Reglas de ejecucion
+
+- No ejecutar fase completa en un solo cambio.
+- Marcar `[~]` antes de tocar codigo.
+- Marcar `[x]` con fecha y evidencia al cerrar.
+- No abrir fase siguiente con bloqueadores P0 pendientes.
+- No marcar `[x]` sin aprobacion explicita del owner funcional.
 
 ## Regla de mantenimiento
 
-Actualizar `CONTEXTO_ACTUAL_BACKEND_MULTIIGLESIA.md` y `ROADMAP_BACKEND_MULTIIGLESIA.md` cuando cambie:
+Actualizar estos archivos cuando cambien contrato, tablas, roles, seguridad o prioridades:
 
-- contrato de autenticacion/sesion
-- estructura de tablas, constraints o indices
-- politica de permisos por rol
-- politicas de expiracion/revocacion/limites
-- alcance o prioridad de fases del programa de escalabilidad
+- `CONTEXTO_ACTUAL_BACKEND_MULTIIGLESIA.md`
+- `ROADMAP_BACKEND_MULTIIGLESIA.md`
+- `TICKETS_BACKEND_MULTIIGLESIA.md`
 
-## Calidad documental minima
+## Control de calidad documental
 
-Antes de cerrar una actualizacion de agentes backend, verificar:
+Antes de cerrar cambios en agentes backend:
 
-- no hay contradiccion con los agentes del frontend
-- el estado `[ ]/[~]/[x]` del roadmap coincide con codigo real
-- las rutas de archivo referenciadas existen
-- los riesgos y bloqueadores siguen vigentes o se actualizan
-
+- no hay contradiccion con agentes frontend,
+- estado `[ ]/[~]/[x]` coincide con codigo real,
+- dependencias entre tickets estan claras,
+- se deja visible el siguiente ticket recomendado.

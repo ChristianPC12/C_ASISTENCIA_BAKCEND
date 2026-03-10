@@ -27,6 +27,8 @@ final class AsistenciaRoutes
         // GET /asistencias (lista con filtros)
         if ($method === 'GET' && $uri === '/asistencias') {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->listar();
             return true;
@@ -35,6 +37,8 @@ final class AsistenciaRoutes
         // GET /asistencias/estadisticas
         if ($method === 'GET' && preg_match($statsPattern, $uri)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->estadisticas();
             return true;
@@ -43,6 +47,8 @@ final class AsistenciaRoutes
         // GET /asistencias/{id}
         if ($method === 'GET' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->obtener((int) $matches[1]);
             return true;
@@ -51,6 +57,8 @@ final class AsistenciaRoutes
         // GET /asistencias/{id}/exportar/excel
         if ($method === 'GET' && preg_match($exportPattern, $uri, $matches)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->exportarExcel((int) $matches[1]);
             return true;
@@ -59,6 +67,8 @@ final class AsistenciaRoutes
         // GET /asistencias/reportes/excel
         if ($method === 'GET' && preg_match($reportPattern, $uri, $matches)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->exportarInformeExcel();
             return true;
@@ -67,6 +77,8 @@ final class AsistenciaRoutes
         // POST /asistencias
         if ($method === 'POST' && $uri === '/asistencias') {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->crear();
             return true;
@@ -75,6 +87,8 @@ final class AsistenciaRoutes
         // PUT /asistencias/{id}
         if ($method === 'PUT' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->actualizar((int) $matches[1]);
             return true;
@@ -83,6 +97,8 @@ final class AsistenciaRoutes
         // DELETE /asistencias/{id}
         if ($method === 'DELETE' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
+            RoleMiddleware::denySuperadminInOperative();
+            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new AsistenciaController();
             $controller->eliminar((int) $matches[1]);
             return true;

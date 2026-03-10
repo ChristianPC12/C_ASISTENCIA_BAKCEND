@@ -40,6 +40,8 @@ final class PresentacionService
      */
     public function generar(array $filtros, int $usuarioId): array
     {
+        $organizacionId = AuthContext::getOrganizacionId();
+
         $filtrosConsulta = [
             'anio' => (int) $filtros['anio'],
             'mes' => str_pad((string) ((int) $filtros['mes']), 2, '0', STR_PAD_LEFT)
@@ -57,9 +59,9 @@ final class PresentacionService
 
         $anio = (int) $filtrosConsulta['anio'];
         $mes = (int) $filtrosConsulta['mes'];
-        if ($this->presentacionDAO->existsByPeriodoCulto($anio, $mes, $cultoCodigo)) {
+        if ($this->presentacionDAO->existsByPeriodoCulto($organizacionId, $anio, $mes, $cultoCodigo)) {
             throw new RuntimeException(
-                'Ya existe una presentacion para ese periodo y culto. Use un culto diferente o cambie el mes.',
+                'Ya existe una presentacion para ese periodo y culto dentro de esta organizacion. Use un culto diferente o cambie el mes.',
                 409
             );
         }
@@ -83,6 +85,7 @@ final class PresentacionService
         }
 
         $id = $this->presentacionDAO->insert([
+            'organizacion_id' => $organizacionId,
             'usuario_id' => $usuarioId,
             'anio' => (int) $filtrosConsulta['anio'],
             'mes' => (int) $filtrosConsulta['mes'],
@@ -96,7 +99,7 @@ final class PresentacionService
             'presentacion_json' => $presentacionJson
         ]);
 
-        $dto = $this->presentacionDAO->findById($id);
+        $dto = $this->presentacionDAO->findById($id, $organizacionId);
         if ($dto === null) {
             throw new RuntimeException('No se pudo leer la presentacion generada.', 500);
         }
@@ -110,12 +113,13 @@ final class PresentacionService
      */
     public function listar(array $filtros, int $usuarioId, bool $esAdmin): array
     {
+        $organizacionId = AuthContext::getOrganizacionId();
         $page = (int) ($filtros['page'] ?? 1);
         $limit = (int) ($filtros['limit'] ?? 20);
         $offset = ($page - 1) * $limit;
 
-        $total = $this->presentacionDAO->countAll($filtros, $usuarioId, $esAdmin);
-        $items = $this->presentacionDAO->findAll($filtros, $usuarioId, $esAdmin, $limit, $offset);
+        $total = $this->presentacionDAO->countAll($filtros, $usuarioId, $esAdmin, $organizacionId);
+        $items = $this->presentacionDAO->findAll($filtros, $usuarioId, $esAdmin, $organizacionId, $limit, $offset);
 
         $itemsResumen = [];
         foreach ($items as $item) {
@@ -138,7 +142,8 @@ final class PresentacionService
      */
     public function obtenerPorId(int $id, int $usuarioId, bool $esAdmin): array
     {
-        $dto = $this->presentacionDAO->findById($id);
+        $organizacionId = AuthContext::getOrganizacionId();
+        $dto = $this->presentacionDAO->findById($id, $organizacionId);
         if ($dto === null) {
             throw new RuntimeException('Presentacion no encontrada.', 404);
         }
@@ -173,6 +178,10 @@ final class PresentacionService
 
         $seriesPorFecha = [];
         $frecuenciaNombres = [];
+        $metricasSuma = [];
+        $metricasMax = [];
+        $metricasMin = [];
+        $metricasCount = [];
 
         foreach ($registros as $registro) {
             $asistentes = (int) ($registro['total_asistentes'] ?? 0);
@@ -205,6 +214,52 @@ final class PresentacionService
 
             $this->acumularNombres($frecuenciaNombres, (string) ($registro['nombres_visitas_barrio'] ?? ''));
             $this->acumularNombres($frecuenciaNombres, (string) ($registro['nombres_visitas_guayabo'] ?? ''));
+
+            $metricas = $registro['metricas'] ?? null;
+            if (is_array($metricas)) {
+                foreach ($metricas as $clave => $valor) {
+                    if (!is_string($clave)) {
+                        continue;
+                    }
+
+                    $clave = strtolower(trim($clave));
+                    if ($clave === '') {
+                        continue;
+                    }
+
+                    if (str_starts_with($clave, 'nombres_visitas_') && is_string($valor)) {
+                        $this->acumularNombres($frecuenciaNombres, $valor);
+                    }
+
+                    $numero = null;
+                    if (is_int($valor) || is_float($valor)) {
+                        $numero = (float) $valor;
+                    } elseif (is_string($valor) && preg_match('/^-?\d+(\.\d+)?$/', trim($valor)) === 1) {
+                        $numero = (float) $valor;
+                    }
+
+                    if ($numero === null) {
+                        continue;
+                    }
+
+                    if (!isset($metricasSuma[$clave])) {
+                        $metricasSuma[$clave] = 0.0;
+                        $metricasMax[$clave] = $numero;
+                        $metricasMin[$clave] = $numero;
+                        $metricasCount[$clave] = 0;
+                    }
+
+                    $metricasSuma[$clave] += $numero;
+                    $metricasCount[$clave]++;
+
+                    if ($numero > $metricasMax[$clave]) {
+                        $metricasMax[$clave] = $numero;
+                    }
+                    if ($numero < $metricasMin[$clave]) {
+                        $metricasMin[$clave] = $numero;
+                    }
+                }
+            }
         }
 
         ksort($seriesPorFecha);
@@ -230,6 +285,21 @@ final class PresentacionService
         $basePuntualidad = $antes + $despues;
         $baseProcedencia = $procBarrio + $procGuayabo;
         $totalVisitas = $visitasBarrio + $visitasGuayabo;
+
+        ksort($metricasSuma);
+        $metricasDinamicas = [];
+        foreach ($metricasSuma as $clave => $suma) {
+            $count = (int) ($metricasCount[$clave] ?? 0);
+            $promedioMetrica = $count > 0 ? round($suma / $count, 2) : 0.0;
+            $metricasDinamicas[] = [
+                'clave' => $clave,
+                'suma' => round($suma, 2),
+                'promedio' => $promedioMetrica,
+                'maximo' => round((float) ($metricasMax[$clave] ?? 0), 2),
+                'minimo' => round((float) ($metricasMin[$clave] ?? 0), 2),
+                'registros' => $count
+            ];
+        }
 
         return [
             'periodo' => [
@@ -289,7 +359,8 @@ final class PresentacionService
             ],
             'series' => [
                 'asistencia_por_fecha' => $series
-            ]
+            ],
+            'metricas_dinamicas' => $metricasDinamicas
         ];
     }
 
@@ -337,6 +408,7 @@ final class PresentacionService
         $procedencia = is_array($metricas['procedencia'] ?? null) ? $metricas['procedencia'] : [];
         $visitas = is_array($metricas['visitas'] ?? null) ? $metricas['visitas'] : [];
         $series = is_array($metricas['series']['asistencia_por_fecha'] ?? null) ? $metricas['series']['asistencia_por_fecha'] : [];
+        $metricasDinamicas = is_array($metricas['metricas_dinamicas'] ?? null) ? $metricas['metricas_dinamicas'] : [];
 
         $totalRegistros = (int) ($resumen['total_registros'] ?? 0);
         $totalAsistentes = (int) ($resumen['total_asistentes'] ?? 0);
@@ -373,6 +445,7 @@ final class PresentacionService
         $direccionTendencia = $variacionAbs > 0 ? 'crecimiento' : ($variacionAbs < 0 ? 'descenso' : 'estabilidad');
 
         $topNombresTexto = $this->formatearTopNombres($topNombres);
+        $topMetricasDinamicas = $this->formatearTopMetricasDinamicas($metricasDinamicas);
         $acciones = $this->construirAccionesDeterministicas($metricas, $variacionPct);
         $mesEtiqueta = (string) ($periodo['mes_etiqueta'] ?? 'Mes');
         $anio = (int) ($periodo['anio'] ?? 0);
@@ -409,11 +482,12 @@ final class PresentacionService
                 [
                     'id' => 'kpis_clave',
                     'titulo' => 'Indicadores Clave',
-                    'resumen' => 'Los indicadores principales consolidan asistencia total, promedio operativo y concentracion de visitas del periodo.',
+                    'resumen' => 'Los indicadores principales consolidan asistencia total, promedio operativo, concentracion de visitas y metricas dinamicas del periodo.',
                     'puntos' => [
                         sprintf('Asistencia total mensual: %d personas.', $totalAsistentes),
                         sprintf('Promedio por registro: %s asistentes.', $this->fmtDec($promedio)),
-                        sprintf('Visitas registradas: %d personas.', $visitasTotal)
+                        sprintf('Visitas registradas: %d personas.', $visitasTotal),
+                        sprintf('Metricas dinamicas destacadas: %s.', $topMetricasDinamicas)
                     ]
                 ],
                 [
@@ -569,6 +643,37 @@ final class PresentacionService
 
         if ($segmentos === []) {
             return 'sin registros relevantes';
+        }
+
+        return implode(', ', $segmentos);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $metricasDinamicas
+     */
+    private function formatearTopMetricasDinamicas(array $metricasDinamicas): string
+    {
+        if ($metricasDinamicas === []) {
+            return 'sin metricas numericas disponibles';
+        }
+
+        usort($metricasDinamicas, static function (array $a, array $b): int {
+            return (float) ($b['suma'] ?? 0) <=> (float) ($a['suma'] ?? 0);
+        });
+
+        $segmentos = [];
+        foreach (array_slice($metricasDinamicas, 0, 3) as $metrica) {
+            $clave = trim((string) ($metrica['clave'] ?? ''));
+            $suma = (float) ($metrica['suma'] ?? 0);
+            if ($clave === '') {
+                continue;
+            }
+
+            $segmentos[] = sprintf('%s=%s', $clave, $this->fmtDec($suma));
+        }
+
+        if ($segmentos === []) {
+            return 'sin metricas numericas disponibles';
         }
 
         return implode(', ', $segmentos);

@@ -129,14 +129,56 @@ final class UsuarioController
     }
 
     /**
+     * GET /v2/usuarios/cupos
+     *
+     * @return void
+     */
+    public function obtenerCuposV2(): void
+    {
+        try {
+            $this->requireAdmin();
+            $resultado = $this->usuarioService->obtenerCuposRoles();
+
+            JsonResponse::sendV2Success(200, 'Cupos por rol obtenidos correctamente.', $resultado);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[UsuarioController::obtenerCuposV2] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    /**
+     * PUT /v2/usuarios/cupos
+     *
+     * @return void
+     */
+    public function actualizarCuposV2(): void
+    {
+        try {
+            $this->requireAdmin();
+            $data = Sanitizer::getJsonBody();
+            $validated = UsuarioValidator::validateCuposRoles($data);
+            $resultado = $this->usuarioService->actualizarCuposRoles($validated);
+
+            JsonResponse::sendV2Success(200, 'Cupos por rol actualizados correctamente.', $resultado);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (RuntimeException $e) {
+            JsonResponse::sendV2Error(409, 'CUPOS_EXCEEDED', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[UsuarioController::actualizarCuposV2] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    /**
      * Verifica que el usuario autenticado sea ADMIN.
      *
      * @return void
      */
     private function requireAdmin(): void
     {
-        if (!AuthContext::esAdmin()) {
-            JsonResponse::send(403, false, 'Acceso denegado. Se requiere rol ADMIN.');
-        }
+        RoleMiddleware::requireAdmin();
     }
 }
