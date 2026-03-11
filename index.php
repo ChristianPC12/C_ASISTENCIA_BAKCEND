@@ -77,6 +77,7 @@ require_once __DIR__ . '/Validator/AsistenciaValidator.php';
 require_once __DIR__ . '/Validator/PresentacionValidator.php';
 require_once __DIR__ . '/Validator/OrganizacionValidator.php';
 require_once __DIR__ . '/Validator/SetupValidator.php';
+require_once __DIR__ . '/Validator/SuperadminCatalogoValidator.php';
 
 // ============================================================
 // 6) Services
@@ -90,6 +91,7 @@ require_once __DIR__ . '/Services/PresentacionService.php';
 require_once __DIR__ . '/Services/CorreoService.php';
 require_once __DIR__ . '/Services/OrganizacionService.php';
 require_once __DIR__ . '/Services/SetupService.php';
+require_once __DIR__ . '/Services/SuperadminCatalogoService.php';
 
 // ============================================================
 // 7) Controllers
@@ -100,6 +102,7 @@ require_once __DIR__ . '/Controller/UsuarioController.php';
 require_once __DIR__ . '/Controller/AsistenciaController.php';
 require_once __DIR__ . '/Controller/PresentacionController.php';
 require_once __DIR__ . '/Controller/SuperadminOrganizacionController.php';
+require_once __DIR__ . '/Controller/SuperadminCatalogoController.php';
 require_once __DIR__ . '/Controller/SetupController.php';
 
 // ============================================================

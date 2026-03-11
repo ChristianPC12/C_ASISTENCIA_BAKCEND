@@ -30,6 +30,10 @@ final class OrganizacionValidator
             $validated['campo'] = self::validateCampo($query['campo'], false);
         }
 
+        if (array_key_exists('distrito', $query)) {
+            $validated['distrito'] = self::validateDistrito($query['distrito'], false);
+        }
+
         if (array_key_exists('tipo', $query)) {
             $validated['tipo'] = self::validateTipo($query['tipo'], false);
         }
@@ -62,6 +66,7 @@ final class OrganizacionValidator
     {
         return [
             'campo' => self::validateCampo($data['campo'] ?? null, true),
+            'distrito' => self::validateDistrito($data['distrito'] ?? null, true),
             'tipo_organizacion' => self::validateTipo($data['tipo_organizacion'] ?? null, true),
             'nombre_organizacion' => self::validateNombre($data['nombre_organizacion'] ?? null),
             'correo_contacto' => self::validateCorreo($data['correo_contacto'] ?? null)
@@ -77,6 +82,7 @@ final class OrganizacionValidator
     public static function validateUpdate(array $data): array
     {
         return [
+            'distrito' => self::validateDistrito($data['distrito'] ?? null, true),
             'tipo_organizacion' => self::validateTipo($data['tipo_organizacion'] ?? null, true),
             'nombre_organizacion' => self::validateNombre($data['nombre_organizacion'] ?? null),
             'correo_contacto' => self::validateCorreo($data['correo_contacto'] ?? null),
@@ -162,6 +168,30 @@ final class OrganizacionValidator
         }
 
         return $campo;
+    }
+
+    /**
+     * @param mixed $value
+     * @param bool  $required
+     * @return string|null
+     */
+    private static function validateDistrito(mixed $value, bool $required): ?string
+    {
+        if ($value === null || $value === '') {
+            if ($required) {
+                throw new InvalidArgumentException('El campo "distrito" es obligatorio.');
+            }
+            return null;
+        }
+
+        $distrito = strtoupper(self::toCleanString($value));
+        if (preg_match('/^[A-Z0-9_]{2,24}$/', $distrito) !== 1) {
+            throw new InvalidArgumentException(
+                'El campo "distrito" debe ser alfanumerico con guion bajo (2 a 24 caracteres).'
+            );
+        }
+
+        return $distrito;
     }
 
     /**

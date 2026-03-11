@@ -12,6 +12,9 @@ final class OrganizacionDTO
     public int $campoId;
     public string $campoCodigo;
     public string $campoNombre;
+    public ?int $distritoId;
+    public ?string $distritoCodigo;
+    public ?string $distritoNombre;
     public string $codigoInstancia;
     public string $tipoOrganizacion;
     public string $nombreOrganizacion;
@@ -30,6 +33,9 @@ final class OrganizacionDTO
         $this->campoId = 0;
         $this->campoCodigo = '';
         $this->campoNombre = '';
+        $this->distritoId = null;
+        $this->distritoCodigo = null;
+        $this->distritoNombre = null;
         $this->codigoInstancia = '';
         $this->tipoOrganizacion = '';
         $this->nombreOrganizacion = '';

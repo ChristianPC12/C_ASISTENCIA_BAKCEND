@@ -37,6 +37,228 @@ final class OrganizacionDAO
     }
 
     /**
+     * Busca un distrito por codigo.
+     *
+     * @param string $codigo Codigo del distrito.
+     * @return array<string, mixed>|null
+     */
+    public function findDistritoByCodigo(string $codigo): ?array
+    {
+        $sql = "SELECT id, codigo, nombre, activo
+                FROM distritos
+                WHERE codigo = :codigo
+                LIMIT 1";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':codigo' => $codigo]);
+        $row = $stmt->fetch();
+
+        return $row !== false ? $row : null;
+    }
+
+    /**
+     * Lista catalogo de campos.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listCampos(): array
+    {
+        $sql = "SELECT id, codigo, nombre, activo, creado_en, actualizado_en
+                FROM campos
+                ORDER BY nombre ASC";
+
+        $stmt = $this->pdo->query($sql);
+        $rows = $stmt->fetchAll();
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * Lista catalogo de distritos.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listDistritos(): array
+    {
+        $sql = "SELECT id, codigo, nombre, activo, creado_en, actualizado_en
+                FROM distritos
+                ORDER BY nombre ASC";
+
+        $stmt = $this->pdo->query($sql);
+        $rows = $stmt->fetchAll();
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * Inserta un campo.
+     *
+     * @param string $codigo
+     * @param string $nombre
+     * @param bool   $activo
+     * @return int
+     */
+    public function insertCampo(string $codigo, string $nombre, bool $activo = true): int
+    {
+        $sql = "INSERT INTO campos (codigo, nombre, activo)
+                VALUES (:codigo, :nombre, :activo)";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':codigo' => $codigo,
+            ':nombre' => $nombre,
+            ':activo' => $activo ? 1 : 0
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Inserta un distrito.
+     *
+     * @param string $codigo
+     * @param string $nombre
+     * @param bool   $activo
+     * @return int
+     */
+    public function insertDistrito(string $codigo, string $nombre, bool $activo = true): int
+    {
+        $sql = "INSERT INTO distritos (codigo, nombre, activo)
+                VALUES (:codigo, :nombre, :activo)";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':codigo' => $codigo,
+            ':nombre' => $nombre,
+            ':activo' => $activo ? 1 : 0
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Actualiza nombre/estado de un campo por codigo.
+     *
+     * @param string    $codigo
+     * @param string    $nombre
+     * @param bool|null $activo
+     * @return bool
+     */
+    public function updateCampoByCodigo(string $codigo, string $nombre, ?bool $activo = null): bool
+    {
+        $sql = "UPDATE campos
+                SET nombre = :nombre"
+            . ($activo !== null ? ", activo = :activo" : "")
+            . " WHERE codigo = :codigo";
+
+        $stmt = $this->pdo->prepare($sql);
+        $params = [
+            ':nombre' => $nombre,
+            ':codigo' => $codigo
+        ];
+
+        if ($activo !== null) {
+            $params[':activo'] = $activo ? 1 : 0;
+        }
+
+        return $stmt->execute($params);
+    }
+
+    /**
+     * Actualiza nombre/estado de un distrito por codigo.
+     *
+     * @param string    $codigo
+     * @param string    $nombre
+     * @param bool|null $activo
+     * @return bool
+     */
+    public function updateDistritoByCodigo(string $codigo, string $nombre, ?bool $activo = null): bool
+    {
+        $sql = "UPDATE distritos
+                SET nombre = :nombre"
+            . ($activo !== null ? ", activo = :activo" : "")
+            . " WHERE codigo = :codigo";
+
+        $stmt = $this->pdo->prepare($sql);
+        $params = [
+            ':nombre' => $nombre,
+            ':codigo' => $codigo
+        ];
+
+        if ($activo !== null) {
+            $params[':activo'] = $activo ? 1 : 0;
+        }
+
+        return $stmt->execute($params);
+    }
+
+    /**
+     * Elimina un campo por codigo.
+     *
+     * @param string $codigo
+     * @return bool
+     */
+    public function deleteCampoByCodigo(string $codigo): bool
+    {
+        $sql = "DELETE FROM campos
+                WHERE codigo = :codigo";
+
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([':codigo' => $codigo]);
+    }
+
+    /**
+     * Elimina un distrito por codigo.
+     *
+     * @param string $codigo
+     * @return bool
+     */
+    public function deleteDistritoByCodigo(string $codigo): bool
+    {
+        $sql = "DELETE FROM distritos
+                WHERE codigo = :codigo";
+
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([':codigo' => $codigo]);
+    }
+
+    /**
+     * Cuenta organizaciones referenciando el campo indicado.
+     *
+     * @param string $codigo
+     * @return int
+     */
+    public function countOrganizacionesByCampoCodigo(string $codigo): int
+    {
+        $sql = "SELECT COUNT(o.id)
+                FROM organizaciones o
+                INNER JOIN campos c ON c.id = o.campo_id
+                WHERE c.codigo = :codigo";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':codigo' => $codigo]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Cuenta organizaciones referenciando el distrito indicado.
+     *
+     * @param string $codigo
+     * @return int
+     */
+    public function countOrganizacionesByDistritoCodigo(string $codigo): int
+    {
+        $sql = "SELECT COUNT(o.id)
+                FROM organizaciones o
+                INNER JOIN distritos d ON d.id = o.distrito_id
+                WHERE d.codigo = :codigo";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':codigo' => $codigo]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
      * Obtiene una organizacion por ID.
      *
      * @param int $id
@@ -48,6 +270,9 @@ final class OrganizacionDAO
                        o.campo_id,
                        c.codigo AS campo_codigo,
                        c.nombre AS campo_nombre,
+                       o.distrito_id,
+                       d.codigo AS distrito_codigo,
+                       d.nombre AS distrito_nombre,
                        o.codigo_instancia,
                        o.tipo_organizacion,
                        o.nombre_organizacion,
@@ -100,6 +325,7 @@ final class OrganizacionDAO
                        o.actualizado_en
                 FROM organizaciones o
                 INNER JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE o.id = :id
                 LIMIT 1";
 
@@ -137,6 +363,11 @@ final class OrganizacionDAO
             $params[':tipo'] = $filtros['tipo'];
         }
 
+        if (!empty($filtros['distrito'])) {
+            $where[] = 'd.codigo = :distrito';
+            $params[':distrito'] = $filtros['distrito'];
+        }
+
         if (isset($filtros['estado']) && $filtros['estado'] !== 'TODAS') {
             $where[] = 'o.activa = :activa';
             $params[':activa'] = $filtros['estado'] === 'ACTIVA' ? 1 : 0;
@@ -146,7 +377,9 @@ final class OrganizacionDAO
             $where[] = '(o.codigo_instancia LIKE :q
                          OR o.nombre_organizacion LIKE :q
                          OR c.codigo LIKE :q
-                         OR c.nombre LIKE :q)';
+                         OR c.nombre LIKE :q
+                         OR d.codigo LIKE :q
+                         OR d.nombre LIKE :q)';
             $params[':q'] = '%' . $filtros['q'] . '%';
         }
 
@@ -155,6 +388,7 @@ final class OrganizacionDAO
         $sqlCount = "SELECT COUNT(o.id)
                      FROM organizaciones o
                      INNER JOIN campos c ON c.id = o.campo_id
+                     LEFT JOIN distritos d ON d.id = o.distrito_id
                      WHERE {$whereSql}";
 
         $stmtCount = $this->pdo->prepare($sqlCount);
@@ -167,6 +401,9 @@ final class OrganizacionDAO
                            o.campo_id,
                            c.codigo AS campo_codigo,
                            c.nombre AS campo_nombre,
+                           o.distrito_id,
+                           d.codigo AS distrito_codigo,
+                           d.nombre AS distrito_nombre,
                            o.codigo_instancia,
                            o.tipo_organizacion,
                            o.nombre_organizacion,
@@ -219,6 +456,7 @@ final class OrganizacionDAO
                            o.actualizado_en
                     FROM organizaciones o
                     INNER JOIN campos c ON c.id = o.campo_id
+                    LEFT JOIN distritos d ON d.id = o.distrito_id
                     WHERE {$whereSql}
                     ORDER BY o.id DESC
                     LIMIT :offset, :limit";
@@ -300,6 +538,7 @@ final class OrganizacionDAO
      * Inserta una organizacion.
      *
      * @param int         $campoId
+     * @param int         $distritoId
      * @param string      $codigoInstancia
      * @param string      $tipoOrganizacion
      * @param string      $nombreOrganizacion
@@ -308,6 +547,7 @@ final class OrganizacionDAO
      */
     public function insert(
         int $campoId,
+        int $distritoId,
         string $codigoInstancia,
         string $tipoOrganizacion,
         string $nombreOrganizacion,
@@ -315,6 +555,7 @@ final class OrganizacionDAO
     ): int {
         $sql = "INSERT INTO organizaciones (
                     campo_id,
+                    distrito_id,
                     codigo_instancia,
                     tipo_organizacion,
                     nombre_organizacion,
@@ -322,6 +563,7 @@ final class OrganizacionDAO
                     activa
                 ) VALUES (
                     :campo_id,
+                    :distrito_id,
                     :codigo_instancia,
                     :tipo_organizacion,
                     :nombre_organizacion,
@@ -332,6 +574,7 @@ final class OrganizacionDAO
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':campo_id' => $campoId,
+            ':distrito_id' => $distritoId,
             ':codigo_instancia' => $codigoInstancia,
             ':tipo_organizacion' => $tipoOrganizacion,
             ':nombre_organizacion' => $nombreOrganizacion,
@@ -345,6 +588,7 @@ final class OrganizacionDAO
      * Actualiza campos editables de organizacion.
      *
      * @param int         $id
+     * @param int         $distritoId
      * @param string      $tipoOrganizacion
      * @param string      $nombreOrganizacion
      * @param string|null $correoContacto
@@ -353,13 +597,15 @@ final class OrganizacionDAO
      */
     public function update(
         int $id,
+        int $distritoId,
         string $tipoOrganizacion,
         string $nombreOrganizacion,
         ?string $correoContacto,
         bool $activa
     ): bool {
         $sql = "UPDATE organizaciones
-                SET tipo_organizacion = :tipo_organizacion,
+                SET distrito_id = :distrito_id,
+                    tipo_organizacion = :tipo_organizacion,
                     nombre_organizacion = :nombre_organizacion,
                     correo_contacto = :correo_contacto,
                     activa = :activa
@@ -367,6 +613,7 @@ final class OrganizacionDAO
 
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([
+            ':distrito_id' => $distritoId,
             ':tipo_organizacion' => $tipoOrganizacion,
             ':nombre_organizacion' => $nombreOrganizacion,
             ':correo_contacto' => $correoContacto,

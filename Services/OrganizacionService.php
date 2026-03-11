@@ -57,6 +57,7 @@ final class OrganizacionService
             ],
             'filtros_aplicados' => [
                 'campo' => $filtros['campo'] ?? null,
+                'distrito' => $filtros['distrito'] ?? null,
                 'tipo' => $filtros['tipo'] ?? null,
                 'estado' => $filtros['estado'] ?? 'TODAS',
                 'q' => $filtros['q'] ?? null
@@ -77,7 +78,13 @@ final class OrganizacionService
             throw new InvalidArgumentException('El campo indicado no existe o esta inactivo.');
         }
 
+        $distrito = $this->organizacionDAO->findDistritoByCodigo($data['distrito']);
+        if ($distrito === null || (int) ($distrito['activo'] ?? 0) !== 1) {
+            throw new InvalidArgumentException('El distrito indicado no existe o esta inactivo.');
+        }
+
         $campoId = (int) $campo['id'];
+        $distritoId = (int) $distrito['id'];
         $tipo = (string) $data['tipo_organizacion'];
         $nombre = (string) $data['nombre_organizacion'];
         $correo = $data['correo_contacto'] ?? null;
@@ -96,6 +103,7 @@ final class OrganizacionService
 
             $organizacionId = $this->organizacionDAO->insert(
                 $campoId,
+                $distritoId,
                 $codigoInstancia,
                 $tipo,
                 $nombre,
@@ -147,6 +155,11 @@ final class OrganizacionService
         $nuevoTipo = (string) $data['tipo_organizacion'];
         $nuevoNombre = (string) $data['nombre_organizacion'];
         $nuevoCorreo = $data['correo_contacto'] ?? null;
+        $distrito = $this->organizacionDAO->findDistritoByCodigo((string) $data['distrito']);
+        if ($distrito === null || (int) ($distrito['activo'] ?? 0) !== 1) {
+            throw new InvalidArgumentException('El distrito indicado no existe o esta inactivo.');
+        }
+        $nuevoDistritoId = (int) $distrito['id'];
         $nuevaActiva = array_key_exists('activa', $data) && is_bool($data['activa'])
             ? $data['activa']
             : $existente->activa;
@@ -163,6 +176,7 @@ final class OrganizacionService
         try {
             $this->organizacionDAO->update(
                 $organizacionId,
+                $nuevoDistritoId,
                 $nuevoTipo,
                 $nuevoNombre,
                 is_string($nuevoCorreo) ? $nuevoCorreo : null,

@@ -22,6 +22,15 @@ final class OrganizacionMapper
         $dto->campoId = (int) ($row['campo_id'] ?? 0);
         $dto->campoCodigo = (string) ($row['campo_codigo'] ?? '');
         $dto->campoNombre = (string) ($row['campo_nombre'] ?? '');
+        $dto->distritoId = isset($row['distrito_id']) && $row['distrito_id'] !== null
+            ? (int) $row['distrito_id']
+            : null;
+        $dto->distritoCodigo = isset($row['distrito_codigo']) && $row['distrito_codigo'] !== null
+            ? (string) $row['distrito_codigo']
+            : null;
+        $dto->distritoNombre = isset($row['distrito_nombre']) && $row['distrito_nombre'] !== null
+            ? (string) $row['distrito_nombre']
+            : null;
         $dto->codigoInstancia = (string) ($row['codigo_instancia'] ?? '');
         $dto->tipoOrganizacion = (string) ($row['tipo_organizacion'] ?? '');
         $dto->nombreOrganizacion = (string) ($row['nombre_organizacion'] ?? '');
@@ -56,6 +65,9 @@ final class OrganizacionMapper
             'id' => $dto->id,
             'campo' => $dto->campoCodigo,
             'campo_nombre' => $dto->campoNombre,
+            'distrito' => $dto->distritoCodigo,
+            'distrito_codigo' => $dto->distritoCodigo,
+            'distrito_nombre' => $dto->distritoNombre,
             'codigo_instancia' => $dto->codigoInstancia,
             'tipo_organizacion' => $dto->tipoOrganizacion,
             'nombre_organizacion' => $dto->nombreOrganizacion,
