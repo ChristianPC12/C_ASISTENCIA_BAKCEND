@@ -36,19 +36,29 @@ final class CorreoService
             ];
         }
 
-        $apiKey = trim((string) getenv('BREVO_API_KEY'));
-        $senderEmail = trim((string) getenv('BREVO_SENDER_EMAIL'));
-        $senderName = trim((string) getenv('BREVO_SENDER_NAME'));
+        $apiKey = $this->resolveConfigString('BREVO_API_KEY');
+        $senderEmail = $this->resolveConfigString('BREVO_SENDER_EMAIL');
+        $senderName = $this->resolveConfigString('BREVO_SENDER_NAME', 'C_ASISTENCIA');
+        $apiUrl = $this->resolveConfigString('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email');
+        $timeoutSeconds = $this->resolveConfigInt('BREVO_TIMEOUT_SECONDS', 10);
 
         if ($senderName === '') {
             $senderName = 'C_ASISTENCIA';
         }
 
         if ($apiKey === '' || $senderEmail === '' || filter_var($senderEmail, FILTER_VALIDATE_EMAIL) === false) {
+            $faltantes = [];
+            if ($apiKey === '') {
+                $faltantes[] = 'BREVO_API_KEY';
+            }
+            if ($senderEmail === '' || filter_var($senderEmail, FILTER_VALIDATE_EMAIL) === false) {
+                $faltantes[] = 'BREVO_SENDER_EMAIL';
+            }
+
             return [
                 'enviado' => false,
                 'proveedor' => 'brevo',
-                'detalle' => 'No se pudo enviar correo: configuracion Brevo no disponible.'
+                'detalle' => 'No se pudo enviar correo: configuracion Brevo incompleta (' . implode(', ', $faltantes) . ').'
             ];
         }
 
@@ -93,7 +103,7 @@ final class CorreoService
             ];
         }
 
-        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        $ch = curl_init($apiUrl);
         if ($ch === false) {
             return [
                 'enviado' => false,
@@ -111,7 +121,7 @@ final class CorreoService
                 'api-key: ' . $apiKey
             ],
             CURLOPT_POSTFIELDS => $jsonPayload,
-            CURLOPT_TIMEOUT => 10
+            CURLOPT_TIMEOUT => $timeoutSeconds
         ]);
 
         $response = curl_exec($ch);
@@ -127,18 +137,37 @@ final class CorreoService
             ];
         }
 
+        $responseData = json_decode((string) $response, true);
+        $messageId = is_array($responseData) && isset($responseData['messageId'])
+            ? (string) $responseData['messageId']
+            : null;
+
         if ($httpCode >= 200 && $httpCode < 300) {
             return [
                 'enviado' => true,
                 'proveedor' => 'brevo',
-                'detalle' => 'Correo enviado correctamente.'
+                'message_id' => $messageId,
+                'detalle' => $messageId !== null
+                    ? 'Correo enviado correctamente (message_id: ' . $messageId . ').'
+                    : 'Correo enviado correctamente.'
             ];
+        }
+
+        $detalleProveedor = '';
+        if (is_array($responseData)) {
+            $msg = $responseData['message'] ?? $responseData['code'] ?? null;
+            if (is_string($msg) && trim($msg) !== '') {
+                $detalleProveedor = trim($msg);
+            }
         }
 
         return [
             'enviado' => false,
             'proveedor' => 'brevo',
-            'detalle' => 'No se pudo enviar correo: proveedor rechazo la solicitud (HTTP ' . $httpCode . ').'
+            'detalle' => 'No se pudo enviar correo: proveedor rechazo la solicitud (HTTP '
+                . $httpCode
+                . ($detalleProveedor !== '' ? ', ' . $detalleProveedor : '')
+                . ').'
         ];
     }
 
@@ -175,5 +204,64 @@ final class CorreoService
             . '</ul>'
             . '<p>Por seguridad, cambia la contrasena al ingresar.</p>';
     }
-}
 
+    /**
+     * Resuelve configuracion string desde constante o entorno.
+     *
+     * @param string $key
+     * @param string $default
+     * @return string
+     */
+    private function resolveConfigString(string $key, string $default = ''): string
+    {
+        if (defined($key)) {
+            $value = constant($key);
+            if (is_string($value)) {
+                $trimmed = trim($value);
+                if ($trimmed !== '') {
+                    return $trimmed;
+                }
+            }
+        }
+
+        $env = getenv($key);
+        if ($env !== false) {
+            $trimmedEnv = trim((string) $env);
+            if ($trimmedEnv !== '') {
+                return $trimmedEnv;
+            }
+        }
+
+        return $default;
+    }
+
+    /**
+     * Resuelve configuracion entera desde constante o entorno.
+     *
+     * @param string $key
+     * @param int    $default
+     * @return int
+     */
+    private function resolveConfigInt(string $key, int $default): int
+    {
+        if (defined($key)) {
+            $value = constant($key);
+            if (is_int($value) || is_numeric((string) $value)) {
+                $parsed = (int) $value;
+                if ($parsed > 0) {
+                    return $parsed;
+                }
+            }
+        }
+
+        $env = getenv($key);
+        if ($env !== false && is_numeric((string) $env)) {
+            $parsed = (int) $env;
+            if ($parsed > 0) {
+                return $parsed;
+            }
+        }
+
+        return $default;
+    }
+}

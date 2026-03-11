@@ -292,7 +292,6 @@ final class OrganizacionDAO
                            INNER JOIN roles ra ON ra.id = ua.rol_id
                            WHERE ua.organizacion_id = o.id
                              AND ra.nombre = 'ADMIN'
-                             AND ua.activo = 1
                            ORDER BY ua.id DESC
                            LIMIT 1
                        ) AS admin_usuario_activo,
@@ -302,7 +301,6 @@ final class OrganizacionDAO
                            INNER JOIN roles ra ON ra.id = ua.rol_id
                            WHERE ua.organizacion_id = o.id
                              AND ra.nombre = 'ADMIN'
-                             AND ua.activo = 1
                            ORDER BY ua.id DESC
                            LIMIT 1
                        ) AS admin_password_expira_en,
@@ -423,7 +421,6 @@ final class OrganizacionDAO
                                INNER JOIN roles ra ON ra.id = ua.rol_id
                                WHERE ua.organizacion_id = o.id
                                  AND ra.nombre = 'ADMIN'
-                                 AND ua.activo = 1
                                ORDER BY ua.id DESC
                                LIMIT 1
                            ) AS admin_usuario_activo,
@@ -433,7 +430,6 @@ final class OrganizacionDAO
                                INNER JOIN roles ra ON ra.id = ua.rol_id
                                WHERE ua.organizacion_id = o.id
                                  AND ra.nombre = 'ADMIN'
-                                 AND ua.activo = 1
                                ORDER BY ua.id DESC
                                LIMIT 1
                            ) AS admin_password_expira_en,
