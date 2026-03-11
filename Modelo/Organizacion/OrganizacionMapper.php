@@ -30,6 +30,14 @@ final class OrganizacionMapper
         $dto->correoContacto = $correo !== null ? (string) $correo : null;
 
         $dto->activa = (int) ($row['activa'] ?? 0) === 1;
+        $dto->tieneAdminActivo = (int) ($row['tiene_admin_activo'] ?? 0) === 1;
+        $dto->adminTemporalActivo = (int) ($row['admin_temporal_activo'] ?? 0) === 1;
+        $dto->adminUsuarioActivo = isset($row['admin_usuario_activo']) && $row['admin_usuario_activo'] !== null
+            ? (string) $row['admin_usuario_activo']
+            : null;
+        $dto->adminPasswordExpiraEn = isset($row['admin_password_expira_en']) && $row['admin_password_expira_en'] !== null
+            ? (string) $row['admin_password_expira_en']
+            : null;
         $dto->creadoEn = (string) ($row['creado_en'] ?? '');
         $dto->actualizadoEn = (string) ($row['actualizado_en'] ?? '');
 
@@ -53,9 +61,12 @@ final class OrganizacionMapper
             'nombre_organizacion' => $dto->nombreOrganizacion,
             'correo_contacto' => $dto->correoContacto,
             'activa' => $dto->activa,
+            'tiene_admin_activo' => $dto->tieneAdminActivo,
+            'admin_temporal_activo' => $dto->adminTemporalActivo,
+            'admin_usuario_activo' => $dto->adminUsuarioActivo,
+            'admin_password_expira_en' => $dto->adminPasswordExpiraEn,
             'creado_en' => $dto->creadoEn,
             'actualizado_en' => $dto->actualizadoEn
         ];
     }
 }
-

@@ -370,6 +370,40 @@ final class UsuarioDAO
     }
 
     /**
+     * Obtiene el ADMIN activo mas reciente de una organizacion.
+     *
+     * @param int $organizacionId
+     * @return UsuarioDTO|null
+     */
+    public function findAdminActivoByOrganizacion(int $organizacionId): ?UsuarioDTO
+    {
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
+                       o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       u.creado_en, u.actualizado_en
+                FROM usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                LEFT JOIN organizaciones o ON o.id = u.organizacion_id
+                LEFT JOIN campos c ON c.id = o.campo_id
+                WHERE u.organizacion_id = :organizacion_id
+                  AND r.nombre = 'ADMIN'
+                  AND u.activo = 1
+                ORDER BY u.id DESC
+                LIMIT 1";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':organizacion_id' => $organizacionId]);
+        $row = $stmt->fetch();
+
+        if ($row === false) {
+            return null;
+        }
+
+        return UsuarioMapper::fromRow($row);
+    }
+
+    /**
      * Cuenta usuarios activos por rol y organizacion.
      *
      * @param int      $organizacionId

@@ -213,8 +213,9 @@ final class OrganizacionService
             throw new RuntimeException('El nombre de usuario ya esta registrado.');
         }
 
-        if ($this->usuarioDAO->existsAdminActivoByOrganizacion($organizacionId)) {
-            throw new RuntimeException('La organizacion ya tiene un ADMIN activo.');
+        $adminActivo = $this->usuarioDAO->findAdminActivoByOrganizacion($organizacionId);
+        if ($adminActivo !== null) {
+            throw new RuntimeException($this->buildAdminActivoConflictMessage($adminActivo));
         }
 
         $rolAdminId = $this->usuarioDAO->findRolIdByNombre('ADMIN');
@@ -436,5 +437,66 @@ final class OrganizacionService
         }
 
         return null;
+    }
+
+    /**
+     * Construye mensaje de conflicto cuando ya existe un ADMIN activo.
+     *
+     * @param UsuarioDTO $adminActivo
+     * @return string
+     */
+    private function buildAdminActivoConflictMessage(UsuarioDTO $adminActivo): string
+    {
+        $diasRestantes = $this->resolveDiasRestantesAdminTemporal($adminActivo);
+
+        if ($diasRestantes !== null) {
+            if ($diasRestantes <= 1) {
+                return 'La organizacion ya tiene un ADMIN temporal activo. Podra crear otro en 1 dia cuando expire la cuenta actual.';
+            }
+
+            return 'La organizacion ya tiene un ADMIN temporal activo. Podra crear otro en '
+                . $diasRestantes
+                . ' dias cuando expire la cuenta actual.';
+        }
+
+        return 'La organizacion ya tiene un ADMIN activo. Para crear otro, primero debe desactivar o reemplazar la cuenta ADMIN actual.';
+    }
+
+    /**
+     * Si el ADMIN activo corresponde a una cuenta temporal, retorna dias restantes.
+     * Si no es temporal, retorna null.
+     *
+     * @param UsuarioDTO $adminActivo
+     * @return int|null
+     */
+    private function resolveDiasRestantesAdminTemporal(UsuarioDTO $adminActivo): ?int
+    {
+        if (!$adminActivo->activo || strtoupper($adminActivo->rolNombre) !== 'ADMIN') {
+            return null;
+        }
+
+        if ($adminActivo->creadoEn === '' || $adminActivo->passwordExpiraEn === '') {
+            return null;
+        }
+
+        try {
+            $creadoEn = new DateTimeImmutable($adminActivo->creadoEn);
+            $expiraEn = new DateTimeImmutable($adminActivo->passwordExpiraEn);
+
+            $diasVentanaTemporal = (int) $creadoEn->diff($expiraEn)->format('%r%a');
+            if ($diasVentanaTemporal < 1 || $diasVentanaTemporal > self::ADMIN_TEMPORAL_DIAS) {
+                return null;
+            }
+
+            $ahora = new DateTimeImmutable('now');
+            if ($expiraEn <= $ahora) {
+                return 0;
+            }
+
+            $segundosRestantes = $expiraEn->getTimestamp() - $ahora->getTimestamp();
+            return (int) ceil($segundosRestantes / 86400);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }
