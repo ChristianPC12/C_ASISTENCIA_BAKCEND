@@ -16,6 +16,16 @@ Este paquete define la ejecucion backend de la escalabilidad nacional por ticket
 4. `contexto_general.md`
 5. `Contexto_actual_bd.md`
 
+## Modo de arranque obligatorio (discovery-first)
+
+Antes de modificar codigo:
+
+1. leer los 5 documentos en orden,
+2. devolver brief de alcance/riesgos/dependencias,
+3. esperar instruccion explicita del owner para implementar.
+
+Sin esa instruccion, el agente debe permanecer en modo analisis.
+
 ## Regla de activacion
 
 Usar estos agentes cuando la tarea incluya:

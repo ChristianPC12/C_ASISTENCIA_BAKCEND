@@ -1,9 +1,16 @@
-# AGENTS - C_ASISTENCIA_BAKCEND
+# AGENTS - C_ASISTENCIA_BAKCEND (Actualizado 2026-03-11)
 
 ## Objetivo
 
-Guiar la evolucion del backend a multiiglesia/multigrupo por tickets,
-sin perder aislamiento de datos ni alineacion con frontend.
+Mantener estable el backend multi-tenant ya consolidado y habilitar nuevos modulos
+con ejecucion controlada (discovery -> implementacion), sin romper contratos vigentes.
+
+## Estado base confirmado (2026-03-11)
+
+- API v2 de superadmin consolidada (organizaciones + admin temporal + catalogos de campos/distritos).
+- Soporte de estados de admin (`activo`, `expirado`, `sin admin`) disponible para UI.
+- Integracion de envio de credenciales via Brevo lista (configurable por entorno/local).
+- Validaciones backend activas para `campo`, `distrito`, correos y reglas de unicidad.
 
 ## Lectura obligatoria al iniciar
 
@@ -12,6 +19,16 @@ sin perder aislamiento de datos ni alineacion con frontend.
 3. `.agents/escalabilidad/TICKETS_BACKEND_MULTIIGLESIA.md`
 4. `contexto_general.md`
 5. `Contexto_actual_bd.md`
+
+## Modo de arranque obligatorio (sin programar)
+
+Antes de tocar codigo, el agente debe:
+
+1. Leer los documentos obligatorios.
+2. Entregar un brief corto con alcance, riesgos y archivos impactados.
+3. Esperar autorizacion explicita del owner para implementar.
+
+Si no hay autorizacion explicita, el agente permanece en modo analisis.
 
 ## Reglas operativas
 
@@ -36,6 +53,6 @@ Cualquier cambio backend que altere auth, roles, rutas o contrato de datos debe 
 - `C_ASISTENCIA_FRONTEND/.agents/react-doctor/TICKETS_ESCALABILIDAD_NACIONAL.md`
 - `C_ASISTENCIA_FRONTEND/.agents/react-doctor/prompt_frontend.md`
 
-## Primer ticket recomendado para iniciar
+## Nota operativa
 
-- `B0-T01` en `.agents/escalabilidad/TICKETS_BACKEND_MULTIIGLESIA.md`
+El siguiente bloque de trabajo lo define el owner funcional segun prioridad de modulo.

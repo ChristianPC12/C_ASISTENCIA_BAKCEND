@@ -1,4 +1,4 @@
-# Contexto Actual Backend Multiiglesia (2026-03-10)
+# Contexto Actual Backend Multiiglesia (2026-03-11)
 
 ## Estado backend vigente
 
@@ -11,12 +11,36 @@
 
 - Aislamiento tenant activo por `organizacion_id`.
 - Auth tenant-aware en login/me/logout y middleware.
-- API v2 de superadmin activa (alta/edicion organizaciones + admin temporal).
+- API v2 de superadmin consolidada:
+  - organizaciones (alta/listado/edicion),
+  - admin temporal,
+  - catalogos globales de campos y distritos (CRUD).
 - API v2 setup activa (estado/cultos/metricas/procedencias/finalizar).
 - Guard central `SETUP_REQUIRED` en modulos operativos.
 - Dominio dinamico de metricas en asistencia/estadisticas/presentaciones.
 - Cupos por rol por tenant + enforcement en usuarios.
 - Expiracion automatica de ADMIN temporal a 5 dias.
+
+## Superadmin consolidado (2026-03-11)
+
+- Organizacion requiere `campo` y `distrito` validos y activos al crear/editar.
+- Listado de organizaciones devuelve `distrito_codigo` y `distrito_nombre`.
+- Endpoints de catalogo v2 activos:
+  - `GET/POST/PUT/DELETE /v2/superadmin/campos`
+  - `GET/POST/PUT/DELETE /v2/superadmin/distritos`
+- Logica de estado de admin ajustada para distinguir correctamente `ADMIN expirado` vs `Sin ADMIN`.
+- Envio opcional de credenciales por Brevo integrado en `crear admin temporal`.
+
+## Configuracion de correo Brevo
+
+- Configurable por constantes/env:
+  - `BREVO_API_KEY`
+  - `BREVO_SENDER_EMAIL`
+  - `BREVO_SENDER_NAME`
+  - `BREVO_API_URL`
+  - `BREVO_TIMEOUT_SECONDS`
+- `Config/Global.php` permite override local via `Config/Global.local.php`.
+- Respuesta de correo incluye `detalle` y, cuando aplica, `message_id`.
 
 ## Estado de hardening (B7)
 
@@ -24,27 +48,10 @@
 - B7-T02: migracion/rollback staging ejecutado OK.
 - B7-T03: checklist final y runbooks operativos documentados.
 
-Evidencia B7:
+## Validaciones tecnicas recientes
 
-- `.agents/escalabilidad/EVIDENCIA_B7_T01_AISLAMIENTO_MULTI_TENANT_2026-03-09.md`
-- `.agents/escalabilidad/EVIDENCIA_B7_T02_MIGRACION_ROLLBACK_STAGING_2026-03-09.md`
-- `.agents/escalabilidad/EVIDENCIA_B7_T03_CHECKLIST_SALIDA_2026-03-10.md`
-- `.agents/escalabilidad/CHECKLIST_SALIDA_PRODUCCION_B7_T03.md`
-
-## Cambios recientes (2026-03-10)
-
-- CORS endurecido:
-  - `Config/Global.php` usa `CORS_ALLOWED_ORIGINS` configurable (sin `*` por defecto).
-  - `Middleware/CorsMiddleware.php` valida origen y bloquea preflight no permitido.
-- Superadmin (pulido post-B7):
-  - `PUT /v2/superadmin/organizaciones/{organizacion_id}` permite editar `activa`.
-  - validacion de nombre de organizacion y nombre de admin temporal sin numeros (rango 5-30 caracteres).
-  - validacion de correos (`correo_contacto` / `correo_destino`) mas estricta (maximo 30 caracteres).
-- Lint completo de backend:
-  - `php -l` OK en todo el proyecto.
-- Re-ejecucion de scripts B7:
-  - aislamiento: OK
-  - migracion/rollback staging: OK
+- `php -l` OK en archivos backend modificados.
+- Contratos v2 usados por frontend sincronizados para superadmin.
 
 ## Runbooks operativos disponibles
 
@@ -56,6 +63,7 @@ Evidencia B7:
 
 - Cutover productivo depende de ejecucion real de ventana de mantenimiento.
 - Token bearer sigue en modelo stateless (seguridad depende de higiene cliente/servidor).
+- Entregabilidad de correo depende de dominio/remitente correctamente verificado en Brevo.
 
 ## Decision de gate
 
