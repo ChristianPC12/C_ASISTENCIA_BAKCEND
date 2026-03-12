@@ -106,7 +106,7 @@ final class SetupDAO
      */
     public function getCultos(int $organizacionId): array
     {
-        $sql = "SELECT codigo, nombre, dia_semana, hora_inicio, activo, orden
+        $sql = "SELECT id, codigo, nombre, dia_semana, hora_inicio, activo, orden
                 FROM organizacion_cultos
                 WHERE organizacion_id = :organizacion_id
                 ORDER BY orden ASC, id ASC";
@@ -170,7 +170,7 @@ final class SetupDAO
      */
     public function getProcedencias(int $organizacionId): array
     {
-        $sql = "SELECT nombre, activo, orden
+        $sql = "SELECT id, nombre, activo, orden
                 FROM organizacion_procedencias
                 WHERE organizacion_id = :organizacion_id
                 ORDER BY orden ASC, id ASC";
@@ -246,7 +246,8 @@ final class SetupDAO
             return $stmt->fetchAll() ?: [];
         }
 
-        $sql = "SELECT clave, etiqueta, habilitado, obligatorio
+        $selectLegacyCategoria = $columnas['regla_dependencia'] ? ', regla_dependencia' : '';
+        $sql = "SELECT clave, etiqueta, habilitado, obligatorio{$selectLegacyCategoria}
                 FROM organizacion_metricas_config
                 WHERE organizacion_id = :organizacion_id
                 {$ordenSql}";
@@ -255,9 +256,18 @@ final class SetupDAO
         $stmt->execute([':organizacion_id' => $organizacionId]);
 
         $rows = $stmt->fetchAll() ?: [];
-        return array_map(function (array $item): array {
+        return array_map(function (array $item) use ($columnas): array {
             $clave = strtolower(trim((string) ($item['clave'] ?? '')));
-            $item['categoria'] = $this->inferirCategoriaPorClave($clave);
+            $categoria = null;
+            if ($columnas['regla_dependencia']) {
+                $categoria = $this->parseCategoriaLegacy((string) ($item['regla_dependencia'] ?? ''));
+            }
+            $item['categoria'] = $categoria !== null
+                ? $categoria
+                : $this->inferirCategoriaPorClave($clave);
+            if (array_key_exists('regla_dependencia', $item)) {
+                unset($item['regla_dependencia']);
+            }
             return $item;
         }, $rows);
     }
@@ -327,7 +337,7 @@ final class SetupDAO
                     $params[':depende_de_clave'] = null;
                 }
                 if ($columnas['regla_dependencia']) {
-                    $params[':regla_dependencia'] = null;
+                    $params[':regla_dependencia'] = $this->serializarCategoriaLegacy($categoria);
                 }
                 if ($columnas['orden']) {
                     $params[':orden'] = $idx + 1;
@@ -525,5 +535,41 @@ final class SetupDAO
         }
 
         return 'adicionales';
+    }
+
+    /**
+     * Serializa categoria para esquemas legacy sin columna `categoria`.
+     *
+     * @param string $categoria
+     * @return string
+     */
+    private function serializarCategoriaLegacy(string $categoria): string
+    {
+        $valor = strtolower(trim($categoria));
+        if ($valor === '') {
+            $valor = 'adicionales';
+        }
+        return 'CAT:' . $valor;
+    }
+
+    /**
+     * Extrae categoria desde `regla_dependencia` legacy con formato CAT:<categoria>.
+     *
+     * @param string $legacy
+     * @return string|null
+     */
+    private function parseCategoriaLegacy(string $legacy): ?string
+    {
+        $valor = strtolower(trim($legacy));
+        if ($valor === '' || !str_starts_with($valor, 'cat:')) {
+            return null;
+        }
+
+        $categoria = trim(substr($valor, 4));
+        if ($categoria === '') {
+            return null;
+        }
+
+        return $categoria;
     }
 }

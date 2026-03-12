@@ -38,7 +38,7 @@ final class AsistenciaService
 
         // Convertir codigo de culto a culto_id
         if (!empty($filtros['culto'])) {
-            $culto = $this->cultoDAO->findByCodigo(strtoupper((string) $filtros['culto']));
+            $culto = $this->resolverCultoPorCodigo((string) $filtros['culto'], $organizacionId);
             if ($culto !== null) {
                 $filtrosDAO['culto_id'] = $culto->id;
             }
@@ -94,7 +94,7 @@ final class AsistenciaService
             throw new InvalidArgumentException('El filtro culto es obligatorio.');
         }
 
-        $culto = $this->cultoDAO->findByCodigo($cultoCodigo);
+        $culto = $this->resolverCultoPorCodigo($cultoCodigo, AuthContext::getOrganizacionId());
         if ($culto === null) {
             throw new InvalidArgumentException('El culto indicado no existe.');
         }
@@ -802,5 +802,41 @@ final class AsistenciaService
 
         $entero = (int) $valor;
         return $entero >= 0 ? $entero : 0;
+    }
+
+    /**
+     * Resuelve culto global por codigo amigable del setup de la organizacion.
+     *
+     * @param string $codigo
+     * @param int $organizacionId
+     * @return CultoDTO|null
+     */
+    private function resolverCultoPorCodigo(string $codigo, int $organizacionId): ?CultoDTO
+    {
+        $codigoNormalizado = strtoupper(trim($codigo));
+        if ($codigoNormalizado === '') {
+            return null;
+        }
+
+        $cultosSetup = $this->setupDAO->getCultos($organizacionId);
+        if (!empty($cultosSetup)) {
+            foreach ($cultosSetup as $cultoOrg) {
+                $codigoSetup = strtoupper(trim((string) ($cultoOrg['codigo'] ?? '')));
+                if ($codigoSetup !== $codigoNormalizado) {
+                    continue;
+                }
+
+                return $this->cultoDAO->ensureFromOrganizacionCulto($organizacionId, $cultoOrg);
+            }
+
+            return null;
+        }
+
+        $culto = $this->cultoDAO->findByCodigo($codigoNormalizado);
+        if ($culto !== null) {
+            return $culto;
+        }
+
+        return null;
     }
 }

@@ -101,6 +101,7 @@ final class SetupService
         $this->obtenerEstadoFila($organizacionId);
 
         $this->setupDAO->replaceProcedencias($organizacionId, $data['procedencias']);
+        $this->sincronizarMetricasDerivadasDeProcedencias($organizacionId);
 
         return $this->obtenerEstado($organizacionId);
     }
@@ -392,5 +393,173 @@ final class SetupService
         }
 
         return false;
+    }
+
+    /**
+     * Sincroniza metricas derivadas de procedencias activas para que se reflejen en registro.
+     *
+     * @param int $organizacionId
+     * @return void
+     */
+    private function sincronizarMetricasDerivadasDeProcedencias(int $organizacionId): void
+    {
+        $procedencias = $this->setupDAO->getProcedencias($organizacionId);
+        $metricasActuales = $this->setupDAO->getMetricas($organizacionId);
+
+        $metricasPorClave = [];
+        foreach ($metricasActuales as $item) {
+            $clave = strtolower(trim((string) ($item['clave'] ?? '')));
+            if ($clave !== '') {
+                $metricasPorClave[$clave] = $item;
+            }
+        }
+
+        $metricasBase = [];
+        foreach ($metricasActuales as $item) {
+            $clave = strtolower(trim((string) ($item['clave'] ?? '')));
+            if ($clave === '') {
+                continue;
+            }
+            if ($this->esMetricaDerivadaProcedencia($clave)) {
+                continue;
+            }
+
+            $categoria = strtolower(trim((string) ($item['categoria'] ?? '')));
+            if ($categoria === '') {
+                $categoria = $this->categoriaEsperadaPorClave($clave) ?? 'adicionales';
+            }
+
+            $habilitado = $this->toBool($item['habilitado'] ?? false);
+            $obligatorio = $habilitado ? $this->toBool($item['obligatorio'] ?? false) : false;
+
+            $metricasBase[] = [
+                'clave' => $clave,
+                'etiqueta' => (string) ($item['etiqueta'] ?? $clave),
+                'categoria' => $categoria,
+                'habilitado' => $habilitado,
+                'obligatorio' => $obligatorio
+            ];
+        }
+
+        $metricasDerivadas = [];
+        foreach ($procedencias as $procedencia) {
+            $activa = $this->toBool($procedencia['activo'] ?? false);
+            if (!$activa) {
+                continue;
+            }
+
+            $nombre = trim((string) ($procedencia['nombre'] ?? ''));
+            if ($nombre === '') {
+                continue;
+            }
+
+            $slug = $this->slugProcedencia($nombre);
+            if ($slug === '') {
+                continue;
+            }
+
+            $metricasDerivadas[] = $this->construirMetricaProcedencia(
+                'proc_' . $slug,
+                'Procedencia de ' . $nombre,
+                'procedencia',
+                true,
+                true,
+                $metricasPorClave
+            );
+            $metricasDerivadas[] = $this->construirMetricaProcedencia(
+                'visitas_' . $slug,
+                'Visitas de ' . $nombre,
+                'visitas',
+                true,
+                false,
+                $metricasPorClave
+            );
+            $metricasDerivadas[] = $this->construirMetricaProcedencia(
+                'nombres_visitas_' . $slug,
+                'Nombres visitas de ' . $nombre,
+                'visitas',
+                true,
+                false,
+                $metricasPorClave
+            );
+        }
+
+        $final = array_merge($metricasBase, $metricasDerivadas);
+        if (!empty($final)) {
+            $this->setupDAO->replaceMetricas($organizacionId, $final);
+        }
+    }
+
+    /**
+     * @param string $clave
+     * @return bool
+     */
+    private function esMetricaDerivadaProcedencia(string $clave): bool
+    {
+        return str_starts_with($clave, 'proc_')
+            || str_starts_with($clave, 'visitas_')
+            || str_starts_with($clave, 'nombres_visitas_');
+    }
+
+    /**
+     * @param string $nombre
+     * @return string
+     */
+    private function slugProcedencia(string $nombre): string
+    {
+        $texto = trim($nombre);
+        if ($texto === '') {
+            return '';
+        }
+
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texto);
+        if (!is_string($ascii) || $ascii === '') {
+            $ascii = $texto;
+        }
+
+        $slug = strtolower($ascii);
+        $slug = preg_replace('/[^a-z0-9]+/', '_', $slug) ?? '';
+        $slug = preg_replace('/_+/', '_', $slug) ?? '';
+        $slug = trim($slug, '_');
+
+        return substr($slug, 0, 40);
+    }
+
+    /**
+     * @param string $clave
+     * @param string $etiqueta
+     * @param string $categoria
+     * @param bool $habilitadoDefault
+     * @param bool $obligatorioDefault
+     * @param array<string, array<string, mixed>> $metricasPorClave
+     * @return array<string, mixed>
+     */
+    private function construirMetricaProcedencia(
+        string $clave,
+        string $etiqueta,
+        string $categoria,
+        bool $habilitadoDefault,
+        bool $obligatorioDefault,
+        array $metricasPorClave
+    ): array {
+        $actual = $metricasPorClave[$clave] ?? null;
+        $habilitado = $actual !== null
+            ? $this->toBool($actual['habilitado'] ?? false)
+            : $habilitadoDefault;
+        $obligatorio = $actual !== null
+            ? $this->toBool($actual['obligatorio'] ?? false)
+            : $obligatorioDefault;
+
+        if (!$habilitado) {
+            $obligatorio = false;
+        }
+
+        return [
+            'clave' => $clave,
+            'etiqueta' => $etiqueta,
+            'categoria' => $categoria,
+            'habilitado' => $habilitado,
+            'obligatorio' => $obligatorio
+        ];
     }
 }

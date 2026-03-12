@@ -14,6 +14,8 @@ final class PresentacionService
 
     /** @var CultoDAO */
     private CultoDAO $cultoDAO;
+    /** @var SetupDAO */
+    private SetupDAO $setupDAO;
 
     /** @var array<int, string> */
     private const SECTION_IDS = [
@@ -32,6 +34,7 @@ final class PresentacionService
         $this->presentacionDAO = new PresentacionDAO();
         $this->asistenciaService = new AsistenciaService();
         $this->cultoDAO = new CultoDAO();
+        $this->setupDAO = new SetupDAO();
     }
 
     /**
@@ -50,7 +53,7 @@ final class PresentacionService
         $cultoCodigo = null;
         if (!empty($filtros['culto'])) {
             $cultoCodigo = (string) $filtros['culto'];
-            $culto = $this->cultoDAO->findByCodigo($cultoCodigo);
+            $culto = $this->resolverCultoPorCodigo($cultoCodigo, $organizacionId);
             if ($culto === null) {
                 throw new InvalidArgumentException('El culto indicado no existe.');
             }
@@ -714,6 +717,42 @@ final class PresentacionService
 
             $acumulador[$normalizado]++;
         }
+    }
+
+    /**
+     * Resuelve culto por codigo amigable del setup tenant.
+     *
+     * @param string $codigo
+     * @param int $organizacionId
+     * @return CultoDTO|null
+     */
+    private function resolverCultoPorCodigo(string $codigo, int $organizacionId): ?CultoDTO
+    {
+        $codigoNormalizado = strtoupper(trim($codigo));
+        if ($codigoNormalizado === '') {
+            return null;
+        }
+
+        $cultosSetup = $this->setupDAO->getCultos($organizacionId);
+        if (!empty($cultosSetup)) {
+            foreach ($cultosSetup as $cultoOrg) {
+                $codigoSetup = strtoupper(trim((string) ($cultoOrg['codigo'] ?? '')));
+                if ($codigoSetup !== $codigoNormalizado) {
+                    continue;
+                }
+
+                return $this->cultoDAO->ensureFromOrganizacionCulto($organizacionId, $cultoOrg);
+            }
+
+            return null;
+        }
+
+        $culto = $this->cultoDAO->findByCodigo($codigoNormalizado);
+        if ($culto !== null) {
+            return $culto;
+        }
+
+        return null;
     }
 
     private function porcentaje(int $cantidad, int $total): float
