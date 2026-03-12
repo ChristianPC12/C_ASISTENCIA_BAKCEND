@@ -1,7 +1,7 @@
 # Tickets Backend Multiiglesia / Multigrupo
 
 Fecha base: 2026-03-09  
-Ultima actualizacion: 2026-03-10  
+Ultima actualizacion: 2026-03-12  
 Estado global: B0..B7 cerradas
 
 ## Convenciones
@@ -35,7 +35,7 @@ Reglas:
 | B3-T03 | B3 | P0 | [x] | API admin temporal + correo opcional | B3-T02 |
 | B4-T01 | B4 | P0 | [x] | API setup inicial por tenant | B3-T03 |
 | B4-T02 | B4 | P0 | [x] | Guard central de bloqueo por setup pendiente | B4-T01 |
-| B4-T03 | B4 | P0 | [x] | Validaciones de dependencias entre metricas | B4-T01 |
+| B4-T03 | B4 | P0 | [x] | Validaciones base de metricas (consistencia por categoria) | B4-T01 |
 | B5-T01 | B5 | P1 | [x] | Modelo dinamico de metricas por registro | B4-T03 |
 | B5-T02 | B5 | P1 | [x] | Estadisticas/comparaciones dinamicas | B5-T01 |
 | B5-T03 | B5 | P1 | [x] | Presentaciones dinamicas y consultas tenant-aware | B5-T02 |
@@ -77,6 +77,8 @@ Soporte operativo/documental B7-T03:
 - ADMIN/SECRETARIO no operan fuera de su tenant.
 - Setup pendiente bloquea modulos operativos.
 - Procedencias configurables por tenant (max 10).
+- Metricas operan con `categoria`; dependencias tecnicas no se exponen al usuario final.
+- Puntualidad y total de asistentes conservan consistencia por reglas internas de sistema.
 - GRUPO -> IGLESIA conserva la misma cuenta.
 - ADMIN temporal vence a 5 dias.
 
@@ -93,3 +95,16 @@ Soporte operativo/documental B7-T03:
 - Hardening de validaciones superadmin:
   - nombres sin numeros (rango 5-30),
   - correos con validacion mas estricta (maximo 30).
+
+## Notas de pulido post-B7 (2026-03-12)
+
+- Sin reapertura de fases ni cambio de estados `[ ]/[~]/[x]`.
+- Ajuste de contrato setup metricas:
+  - `categoria` pasa a ser campo operativo;
+  - se eliminan `depende_de_clave`, `regla_dependencia` y `orden` del flujo actual.
+- Se agregan scripts de migracion/rollback para transicion de esquema:
+  - `migracion_12032026_metricas_categoria.sql`
+  - `rollback_12032026_metricas_categoria.sql`
+- Servicios de setup/asistencia reforzados con reglas internas para:
+  - par obligatorio de puntualidad,
+  - coherencia de `total_asistentes`.

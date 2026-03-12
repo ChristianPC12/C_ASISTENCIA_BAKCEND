@@ -682,34 +682,30 @@ final class AsistenciaService
             $normalizadas[$clave] = $valorEntrada;
         }
 
-        // Reglas de dependencia configuradas en setup.
-        foreach ($metricasConfigActivas as $config) {
-            $clave = strtolower((string) ($config['clave'] ?? ''));
-            $dependeDe = strtolower((string) ($config['depende_de_clave'] ?? ''));
-            $regla = strtoupper((string) ($config['regla_dependencia'] ?? ''));
+        $existeAntes = array_key_exists('llegaron_antes_hora', $normalizadas);
+        $existeDespues = array_key_exists('llegaron_despues_hora', $normalizadas);
+        $existeTotal = array_key_exists('total_asistentes', $normalizadas);
 
-            if ($clave === '' || $dependeDe === '' || $regla === '') {
-                continue;
-            }
+        if ($existeAntes xor $existeDespues) {
+            throw new InvalidArgumentException(
+                'Las metricas llegaron_antes_hora y llegaron_despues_hora deben configurarse en par.'
+            );
+        }
+        if ($existeTotal && (!$existeAntes || !$existeDespues)) {
+            throw new InvalidArgumentException(
+                'La metrica total_asistentes requiere llegaron_antes_hora y llegaron_despues_hora habilitadas.'
+            );
+        }
 
-            $valorPadre = $normalizadas[$dependeDe] ?? null;
-            $valorHijo = $normalizadas[$clave] ?? null;
+        if ($existeAntes && $existeDespues) {
+            $antes = $this->aEnteroNoNegativo($normalizadas['llegaron_antes_hora'] ?? 0);
+            $despues = $this->aEnteroNoNegativo($normalizadas['llegaron_despues_hora'] ?? 0);
 
-            if ($regla === 'SI_MAYOR_CERO') {
-                $padreEntero = $this->aEnteroNoNegativo($valorPadre);
-                if ($padreEntero > 0 && $this->esMetricaVacia($valorHijo)) {
-                    throw new InvalidArgumentException(
-                        'La metrica "' . $clave . '" es obligatoria cuando "' . $dependeDe . '" es mayor a cero.'
-                    );
-                }
-            } elseif ($regla === 'AMBOS_O_NINGUNO') {
-                $padreVacio = $this->esMetricaVacia($valorPadre);
-                $hijoVacio = $this->esMetricaVacia($valorHijo);
-                if ($padreVacio !== $hijoVacio) {
-                    throw new InvalidArgumentException(
-                        'Las metricas "' . $dependeDe . '" y "' . $clave . '" deben completarse ambas o ninguna.'
-                    );
-                }
+            $normalizadas['llegaron_antes_hora'] = $antes;
+            $normalizadas['llegaron_despues_hora'] = $despues;
+
+            if ($existeTotal) {
+                $normalizadas['total_asistentes'] = $antes + $despues;
             }
         }
 

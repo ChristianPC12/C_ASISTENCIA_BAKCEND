@@ -193,9 +193,18 @@ final class SetupValidator
 
         $metricas = [];
         $claves = [];
-        $ordenes = [];
+        $categoriasPermitidas = [
+            'informacion_culto' => true,
+            'composicion_asistentes' => true,
+            'procedencia' => true,
+            'visitas' => true,
+            'permanencia' => true,
+            'total_asistentes' => true,
+            'observaciones' => true,
+            'adicionales' => true
+        ];
 
-        foreach (array_values($data['metricas']) as $index => $item) {
+        foreach (array_values($data['metricas']) as $item) {
             if (!is_array($item)) {
                 throw new InvalidArgumentException('Cada metrica debe ser un objeto valido.');
             }
@@ -228,74 +237,27 @@ final class SetupValidator
                 }
             }
 
-            $depende = null;
-            if (array_key_exists('depende_de_clave', $item) && $item['depende_de_clave'] !== null && $item['depende_de_clave'] !== '') {
-                if (!is_string($item['depende_de_clave'])) {
-                    throw new InvalidArgumentException('Cada "depende_de_clave" debe ser texto.');
+            $categoria = 'adicionales';
+            if (array_key_exists('categoria', $item)) {
+                if (!is_string($item['categoria'])) {
+                    throw new InvalidArgumentException('Cada "categoria" de metrica debe ser texto.');
                 }
-                $depende = strtolower(Sanitizer::cleanString($item['depende_de_clave']));
-                if (preg_match('/^[a-z0-9_]{2,80}$/', $depende) !== 1) {
-                    throw new InvalidArgumentException('Cada "depende_de_clave" debe ser alfanumerica con guion bajo.');
-                }
+                $categoria = strtolower(Sanitizer::cleanString($item['categoria']));
             }
-
-            $regla = null;
-            if (array_key_exists('regla_dependencia', $item) && $item['regla_dependencia'] !== null && $item['regla_dependencia'] !== '') {
-                if (!is_string($item['regla_dependencia'])) {
-                    throw new InvalidArgumentException('Cada "regla_dependencia" debe ser texto.');
-                }
-                $regla = strtoupper(Sanitizer::cleanString($item['regla_dependencia']));
-                if (preg_match('/^[A-Z0-9_]{2,40}$/', $regla) !== 1) {
-                    throw new InvalidArgumentException('Cada "regla_dependencia" debe ser alfanumerica con guion bajo.');
-                }
+            if (!isset($categoriasPermitidas[$categoria])) {
+                throw new InvalidArgumentException(
+                    'La "categoria" de metrica no es valida. Categorias permitidas: '
+                    . implode(', ', array_keys($categoriasPermitidas)) . '.'
+                );
             }
-
-            if ($depende !== null && $regla === null) {
-                throw new InvalidArgumentException('Si define "depende_de_clave", debe definir "regla_dependencia".');
-            }
-            if ($depende === null && $regla !== null) {
-                throw new InvalidArgumentException('No puede definir "regla_dependencia" sin "depende_de_clave".');
-            }
-            if ($depende !== null && $depende === $clave) {
-                throw new InvalidArgumentException('Una metrica no puede depender de si misma.');
-            }
-
-            $orden = $index + 1;
-            if (array_key_exists('orden', $item)) {
-                if (!is_numeric($item['orden'])) {
-                    throw new InvalidArgumentException('Cada "orden" de metrica debe ser numerico.');
-                }
-                $orden = (int) $item['orden'];
-            }
-            if ($orden < 1 || $orden > 999) {
-                throw new InvalidArgumentException('Cada "orden" de metrica debe estar entre 1 y 999.');
-            }
-            if (isset($ordenes[$orden])) {
-                throw new InvalidArgumentException('No se permiten ordenes de metrica duplicados.');
-            }
-            $ordenes[$orden] = true;
 
             $metricas[] = [
                 'clave' => $clave,
                 'etiqueta' => $etiqueta,
                 'habilitado' => (bool) $habilitado,
                 'obligatorio' => (bool) $obligatorio,
-                'depende_de_clave' => $depende,
-                'regla_dependencia' => $regla,
-                'orden' => $orden
+                'categoria' => $categoria
             ];
-        }
-
-        // Validar que dependencias apunten a una clave existente dentro del payload.
-        $keys = [];
-        foreach ($metricas as $metrica) {
-            $keys[(string) $metrica['clave']] = true;
-        }
-        foreach ($metricas as $metrica) {
-            $depende = $metrica['depende_de_clave'];
-            if (is_string($depende) && $depende !== '' && !isset($keys[$depende])) {
-                throw new InvalidArgumentException('La dependencia "' . $depende . '" no existe en la lista de metricas.');
-            }
         }
 
         return ['metricas' => $metricas];
@@ -325,4 +287,3 @@ final class SetupValidator
         return $value;
     }
 }
-

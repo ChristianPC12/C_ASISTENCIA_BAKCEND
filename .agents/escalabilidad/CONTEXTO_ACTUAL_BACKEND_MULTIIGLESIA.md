@@ -1,4 +1,4 @@
-# Contexto Actual Backend Multiiglesia (2026-03-11)
+# Contexto Actual Backend Multiiglesia (2026-03-12)
 
 ## Estado backend vigente
 
@@ -48,9 +48,26 @@
 - B7-T02: migracion/rollback staging ejecutado OK.
 - B7-T03: checklist final y runbooks operativos documentados.
 
+## Ajustes recientes de setup/metricas (2026-03-12)
+
+- Contrato de metricas simplificado a `categoria`:
+  - sin `depende_de_clave`,
+  - sin `regla_dependencia`,
+  - sin `orden` en contrato operativo.
+- `SetupValidator::validateMetricas` valida categorias permitidas y conserva reglas base de `habilitado/obligatorio`.
+- `SetupService` migra validacion de dependencias a consistencia de metricas base:
+  - puntualidad en par (`llegaron_antes_hora` y `llegaron_despues_hora`);
+  - coherencia de `total_asistentes` con puntualidad.
+- `AsistenciaService` normaliza metricas con reglas internas (sin dependencia configurable por usuario).
+- Setup editable aun con estado completo (sin bloqueo artificial de actualizacion post-finalizacion).
+- DAO ajustado para persistir/leer `categoria` y preservar estado completo al refrescar marcas internas.
+- Migraciones nuevas:
+  - `migracion_12032026_metricas_categoria.sql`
+  - `rollback_12032026_metricas_categoria.sql`
+
 ## Validaciones tecnicas recientes
 
-- `php -l` OK en archivos backend modificados.
+- `php -l` OK en archivos backend modificados (`SetupDAO`, `SetupValidator`, `SetupService`, `AsistenciaService`).
 - Contratos v2 usados por frontend sincronizados para superadmin.
 
 ## Runbooks operativos disponibles

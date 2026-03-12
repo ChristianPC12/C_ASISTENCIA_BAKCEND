@@ -8,10 +8,19 @@ declare(strict_types=1);
  */
 final class SetupService
 {
-    private const REGLA_SI_MAYOR_CERO = 'SI_MAYOR_CERO';
-    private const REGLA_AMBOS_O_NINGUNO = 'AMBOS_O_NINGUNO';
     private const CLAVE_PUNTUALIDAD_ANTES = 'llegaron_antes_hora';
     private const CLAVE_PUNTUALIDAD_DESPUES = 'llegaron_despues_hora';
+    private const CLAVE_TOTAL_ASISTENTES = 'total_asistentes';
+    private const CATEGORIAS_VALIDAS = [
+        'informacion_culto',
+        'composicion_asistentes',
+        'procedencia',
+        'visitas',
+        'permanencia',
+        'total_asistentes',
+        'observaciones',
+        'adicionales'
+    ];
 
     /** @var SetupDAO */
     private SetupDAO $setupDAO;
@@ -72,8 +81,7 @@ final class SetupService
     public function guardarCultos(int $organizacionId, array $data): array
     {
         $this->obtenerOrganizacionActiva($organizacionId);
-        $estado = $this->obtenerEstadoFila($organizacionId);
-        $this->assertSetupEditable($estado);
+        $this->obtenerEstadoFila($organizacionId);
 
         $this->setupDAO->replaceCultos($organizacionId, $data['cultos']);
 
@@ -90,8 +98,7 @@ final class SetupService
     public function guardarProcedencias(int $organizacionId, array $data): array
     {
         $this->obtenerOrganizacionActiva($organizacionId);
-        $estado = $this->obtenerEstadoFila($organizacionId);
-        $this->assertSetupEditable($estado);
+        $this->obtenerEstadoFila($organizacionId);
 
         $this->setupDAO->replaceProcedencias($organizacionId, $data['procedencias']);
 
@@ -108,10 +115,9 @@ final class SetupService
     public function guardarMetricas(int $organizacionId, array $data): array
     {
         $this->obtenerOrganizacionActiva($organizacionId);
-        $estado = $this->obtenerEstadoFila($organizacionId);
-        $this->assertSetupEditable($estado);
+        $this->obtenerEstadoFila($organizacionId);
 
-        $this->assertMetricasDependenciasValidas($data['metricas']);
+        $this->assertMetricasConsistentes($data['metricas']);
         $this->setupDAO->replaceMetricas($organizacionId, $data['metricas']);
 
         return $this->obtenerEstado($organizacionId);
@@ -222,8 +228,7 @@ final class SetupService
             $faltantes[] = 'metricas';
         }
 
-        $inconsistenciasMetricas = $this->obtenerInconsistenciasMetricas($metricas);
-        if (!empty($inconsistenciasMetricas)) {
+        if (!empty($this->obtenerInconsistenciasMetricas($metricas))) {
             $faltantes[] = 'dependencias_metricas';
         }
 
@@ -236,18 +241,18 @@ final class SetupService
      * @param array<int, array<string, mixed>> $metricas
      * @return void
      */
-    private function assertMetricasDependenciasValidas(array $metricas): void
+    private function assertMetricasConsistentes(array $metricas): void
     {
         $inconsistencias = $this->obtenerInconsistenciasMetricas($metricas);
         if (!empty($inconsistencias)) {
             throw new InvalidArgumentException(
-                'Dependencias de metricas invalidas: ' . implode(', ', $inconsistencias) . '.'
+                'Configuracion de metricas invalida: ' . implode(', ', $inconsistencias) . '.'
             );
         }
     }
 
     /**
-     * Retorna lista de inconsistencias semanticas entre metricas y dependencias.
+     * Retorna lista de inconsistencias semanticas de metricas.
      *
      * @param array<int, array<string, mixed>> $metricas
      * @return array<int, string>
@@ -262,76 +267,56 @@ final class SetupService
                 continue;
             }
 
-            $depende = strtolower(trim((string) ($item['depende_de_clave'] ?? '')));
-            $regla = strtoupper(trim((string) ($item['regla_dependencia'] ?? '')));
+            $categoria = strtolower(trim((string) ($item['categoria'] ?? 'adicionales')));
 
             $index[$clave] = [
                 'clave' => $clave,
                 'habilitado' => $this->toBool($item['habilitado'] ?? false),
                 'obligatorio' => $this->toBool($item['obligatorio'] ?? false),
-                'depende_de_clave' => $depende,
-                'regla_dependencia' => $regla
+                'categoria' => $categoria
             ];
         }
 
         $inconsistencias = [];
-        $reglasSoportadas = [
-            self::REGLA_SI_MAYOR_CERO,
-            self::REGLA_AMBOS_O_NINGUNO
-        ];
 
         foreach ($index as $clave => $metrica) {
             if ($metrica['obligatorio'] && !$metrica['habilitado']) {
                 $inconsistencias[] = 'obligatorio_sin_habilitar:' . $clave;
             }
 
-            $dependeDe = (string) $metrica['depende_de_clave'];
-            if ($dependeDe === '') {
+            $categoria = (string) ($metrica['categoria'] ?? '');
+            if (!in_array($categoria, self::CATEGORIAS_VALIDAS, true)) {
+                $inconsistencias[] = 'categoria_no_valida:' . $clave . '->' . $categoria;
                 continue;
             }
 
-            if (!isset($index[$dependeDe])) {
-                $inconsistencias[] = 'depende_no_existe:' . $clave . '->' . $dependeDe;
-                continue;
-            }
-
-            $regla = (string) $metrica['regla_dependencia'];
-            if ($regla === '') {
-                $inconsistencias[] = 'regla_faltante:' . $clave;
-                continue;
-            }
-
-            if (!in_array($regla, $reglasSoportadas, true)) {
-                $inconsistencias[] = 'regla_no_soportada:' . $clave;
-                continue;
-            }
-
-            $padre = $index[$dependeDe];
-            if ($metrica['habilitado'] && !$padre['habilitado']) {
-                $inconsistencias[] = 'depende_inactiva:' . $clave . '->' . $dependeDe;
-            }
-
-            if (
-                $regla === self::REGLA_AMBOS_O_NINGUNO
-                && (
-                    $metrica['habilitado'] !== $padre['habilitado']
-                    || $metrica['obligatorio'] !== $padre['obligatorio']
-                )
-            ) {
-                $inconsistencias[] = 'ambos_o_ninguno:' . $clave . '<->' . $dependeDe;
+            $categoriaEsperada = $this->categoriaEsperadaPorClave($clave);
+            if ($categoriaEsperada !== null && $categoria !== $categoriaEsperada) {
+                $inconsistencias[] = 'categoria_invalida:' . $clave . '->' . $categoria;
             }
         }
 
         $existeAntes = isset($index[self::CLAVE_PUNTUALIDAD_ANTES]);
         $existeDespues = isset($index[self::CLAVE_PUNTUALIDAD_DESPUES]);
+        $existeTotal = isset($index[self::CLAVE_TOTAL_ASISTENTES]);
 
         if ($existeAntes xor $existeDespues) {
-            $inconsistencias[] = 'puntualidad_ambos_o_ninguno';
+            $inconsistencias[] = 'puntualidad_incompleta';
+        }
+        if (!$existeAntes) {
+            $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_PUNTUALIDAD_ANTES;
+        }
+        if (!$existeDespues) {
+            $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_PUNTUALIDAD_DESPUES;
+        }
+        if (!$existeTotal) {
+            $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_TOTAL_ASISTENTES;
         }
 
-        if ($existeAntes && $existeDespues) {
+        if ($existeAntes && $existeDespues && $existeTotal) {
             $antes = $index[self::CLAVE_PUNTUALIDAD_ANTES];
             $despues = $index[self::CLAVE_PUNTUALIDAD_DESPUES];
+            $total = $index[self::CLAVE_TOTAL_ASISTENTES];
 
             if (
                 $antes['habilitado'] !== $despues['habilitado']
@@ -339,54 +324,50 @@ final class SetupService
             ) {
                 $inconsistencias[] = 'puntualidad_ambos_o_ninguno';
             }
-        }
 
-        if ($this->tieneCicloDependencias($index)) {
-            $inconsistencias[] = 'ciclo_dependencias';
+            if ($total['habilitado'] && (!$antes['habilitado'] || !$despues['habilitado'])) {
+                $inconsistencias[] = 'total_sin_puntualidad_habilitada';
+            }
+
+            if (($antes['habilitado'] || $despues['habilitado']) && !$total['habilitado']) {
+                $inconsistencias[] = 'puntualidad_sin_total_habilitada';
+            }
         }
 
         return array_values(array_unique($inconsistencias));
     }
 
     /**
-     * Detecta ciclos en el grafo de dependencias de metricas.
+     * Categoria esperada para metricas base conocidas.
      *
-     * @param array<string, array<string, mixed>> $index
-     * @return bool
+     * @param string $clave
+     * @return string|null
      */
-    private function tieneCicloDependencias(array $index): bool
+    private function categoriaEsperadaPorClave(string $clave): ?string
     {
-        $estado = [];
-
-        $visitar = function (string $clave) use (&$visitar, &$estado, $index): bool {
-            $actual = $estado[$clave] ?? 0;
-            if ($actual === 1) {
-                return true;
-            }
-            if ($actual === 2) {
-                return false;
-            }
-
-            $estado[$clave] = 1;
-
-            $dependeDe = (string) ($index[$clave]['depende_de_clave'] ?? '');
-            if ($dependeDe !== '' && isset($index[$dependeDe])) {
-                if ($visitar($dependeDe)) {
-                    return true;
-                }
-            }
-
-            $estado[$clave] = 2;
-            return false;
-        };
-
-        foreach (array_keys($index) as $clave) {
-            if ($visitar($clave)) {
-                return true;
-            }
+        if ($clave === self::CLAVE_PUNTUALIDAD_ANTES || $clave === self::CLAVE_PUNTUALIDAD_DESPUES) {
+            return 'informacion_culto';
+        }
+        if ($clave === self::CLAVE_TOTAL_ASISTENTES) {
+            return 'total_asistentes';
+        }
+        if ($clave === 'ninos' || $clave === 'jovenes') {
+            return 'composicion_asistentes';
+        }
+        if ($clave === 'retiros_antes_terminar' || $clave === 'se_quedaron_todo') {
+            return 'permanencia';
+        }
+        if ($clave === 'observaciones') {
+            return 'observaciones';
+        }
+        if (str_starts_with($clave, 'proc_')) {
+            return 'procedencia';
+        }
+        if (str_starts_with($clave, 'visitas_') || str_starts_with($clave, 'nombres_visitas_')) {
+            return 'visitas';
         }
 
-        return false;
+        return null;
     }
 
     /**

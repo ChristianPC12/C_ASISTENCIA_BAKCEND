@@ -229,10 +229,10 @@ final class SetupDAO
      */
     public function getMetricas(int $organizacionId): array
     {
-        $sql = "SELECT clave, etiqueta, habilitado, obligatorio, depende_de_clave, regla_dependencia, orden
+        $sql = "SELECT clave, etiqueta, categoria, habilitado, obligatorio
                 FROM organizacion_metricas_config
                 WHERE organizacion_id = :organizacion_id
-                ORDER BY orden ASC, id ASC";
+                ORDER BY id ASC";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([':organizacion_id' => $organizacionId]);
@@ -260,36 +260,27 @@ final class SetupDAO
                             organizacion_id,
                             clave,
                             etiqueta,
+                            categoria,
                             habilitado,
-                            obligatorio,
-                            depende_de_clave,
-                            regla_dependencia,
-                            orden
+                            obligatorio
                           ) VALUES (
                             :organizacion_id,
                             :clave,
                             :etiqueta,
+                            :categoria,
                             :habilitado,
-                            :obligatorio,
-                            :depende_de_clave,
-                            :regla_dependencia,
-                            :orden
+                            :obligatorio
                           )";
             $stmtInsert = $this->pdo->prepare($insertSql);
 
             foreach ($metricas as $item) {
-                $depende = $item['depende_de_clave'] ?? null;
-                $regla = $item['regla_dependencia'] ?? null;
-
                 $stmtInsert->execute([
                     ':organizacion_id' => $organizacionId,
                     ':clave' => (string) $item['clave'],
                     ':etiqueta' => (string) $item['etiqueta'],
+                    ':categoria' => (string) ($item['categoria'] ?? 'adicionales'),
                     ':habilitado' => !empty($item['habilitado']) ? 1 : 0,
-                    ':obligatorio' => !empty($item['obligatorio']) ? 1 : 0,
-                    ':depende_de_clave' => is_string($depende) && $depende !== '' ? $depende : null,
-                    ':regla_dependencia' => is_string($regla) && $regla !== '' ? $regla : null,
-                    ':orden' => (int) $item['orden']
+                    ':obligatorio' => !empty($item['obligatorio']) ? 1 : 0
                 ]);
             }
 
@@ -358,29 +349,6 @@ final class SetupDAO
     }
 
     /**
-     * Obtiene dependencias de metricas invalidas.
-     *
-     * @param int $organizacionId
-     * @return array<int, array<string, mixed>>
-     */
-    public function getMetricasDependenciasInvalidas(int $organizacionId): array
-    {
-        $sql = "SELECT m.clave, m.depende_de_clave
-                FROM organizacion_metricas_config m
-                LEFT JOIN organizacion_metricas_config dep
-                  ON dep.organizacion_id = m.organizacion_id
-                 AND dep.clave = m.depende_de_clave
-                WHERE m.organizacion_id = :organizacion_id
-                  AND m.depende_de_clave IS NOT NULL
-                  AND m.depende_de_clave <> ''
-                  AND dep.id IS NULL";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([':organizacion_id' => $organizacionId]);
-        return $stmt->fetchAll() ?: [];
-    }
-
-    /**
      * Marca setup como completo.
      *
      * @param int $organizacionId
@@ -419,9 +387,18 @@ final class SetupDAO
     private function markPendienteInternal(int $organizacionId): void
     {
         $sql = "UPDATE organizacion_config_estado
-                SET estado_setup = 'PENDIENTE',
-                    bloqueada_operacion = 1,
-                    setup_completado_en = NULL,
+                SET estado_setup = CASE
+                        WHEN estado_setup = 'COMPLETO' THEN 'COMPLETO'
+                        ELSE 'PENDIENTE'
+                    END,
+                    bloqueada_operacion = CASE
+                        WHEN estado_setup = 'COMPLETO' THEN 0
+                        ELSE 1
+                    END,
+                    setup_completado_en = CASE
+                        WHEN estado_setup = 'COMPLETO' THEN setup_completado_en
+                        ELSE NULL
+                    END,
                     ultima_revision_en = NOW()
                 WHERE organizacion_id = :organizacion_id";
 
