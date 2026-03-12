@@ -10,6 +10,8 @@ final class SetupDAO
 {
     /** @var PDO */
     private PDO $pdo;
+    /** @var array<string, bool>|null */
+    private ?array $metricasConfigColumns = null;
 
     public function __construct()
     {
@@ -229,15 +231,35 @@ final class SetupDAO
      */
     public function getMetricas(int $organizacionId): array
     {
-        $sql = "SELECT clave, etiqueta, categoria, habilitado, obligatorio
+        $columnas = $this->getMetricasConfigColumns();
+        $ordenSql = $columnas['orden'] ? 'ORDER BY orden ASC, id ASC' : 'ORDER BY id ASC';
+
+        if ($columnas['categoria']) {
+            $sql = "SELECT clave, etiqueta, categoria, habilitado, obligatorio
+                    FROM organizacion_metricas_config
+                    WHERE organizacion_id = :organizacion_id
+                    {$ordenSql}";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([':organizacion_id' => $organizacionId]);
+
+            return $stmt->fetchAll() ?: [];
+        }
+
+        $sql = "SELECT clave, etiqueta, habilitado, obligatorio
                 FROM organizacion_metricas_config
                 WHERE organizacion_id = :organizacion_id
-                ORDER BY id ASC";
+                {$ordenSql}";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([':organizacion_id' => $organizacionId]);
 
-        return $stmt->fetchAll() ?: [];
+        $rows = $stmt->fetchAll() ?: [];
+        return array_map(function (array $item): array {
+            $clave = strtolower(trim((string) ($item['clave'] ?? '')));
+            $item['categoria'] = $this->inferirCategoriaPorClave($clave);
+            return $item;
+        }, $rows);
     }
 
     /**
@@ -251,37 +273,67 @@ final class SetupDAO
     {
         try {
             $this->pdo->beginTransaction();
+            $columnas = $this->getMetricasConfigColumns();
 
             $deleteSql = "DELETE FROM organizacion_metricas_config WHERE organizacion_id = :organizacion_id";
             $stmtDelete = $this->pdo->prepare($deleteSql);
             $stmtDelete->execute([':organizacion_id' => $organizacionId]);
 
+            $insertColumns = [
+                'organizacion_id',
+                'clave',
+                'etiqueta',
+                'habilitado',
+                'obligatorio'
+            ];
+            if ($columnas['categoria']) {
+                $insertColumns[] = 'categoria';
+            }
+            if ($columnas['depende_de_clave']) {
+                $insertColumns[] = 'depende_de_clave';
+            }
+            if ($columnas['regla_dependencia']) {
+                $insertColumns[] = 'regla_dependencia';
+            }
+            if ($columnas['orden']) {
+                $insertColumns[] = 'orden';
+            }
+
             $insertSql = "INSERT INTO organizacion_metricas_config (
-                            organizacion_id,
-                            clave,
-                            etiqueta,
-                            categoria,
-                            habilitado,
-                            obligatorio
+                            " . implode(",\n                            ", $insertColumns) . "
                           ) VALUES (
-                            :organizacion_id,
-                            :clave,
-                            :etiqueta,
-                            :categoria,
-                            :habilitado,
-                            :obligatorio
+                            :" . implode(",\n                            :", $insertColumns) . "
                           )";
             $stmtInsert = $this->pdo->prepare($insertSql);
 
-            foreach ($metricas as $item) {
-                $stmtInsert->execute([
+            foreach ($metricas as $idx => $item) {
+                $clave = strtolower(trim((string) ($item['clave'] ?? '')));
+                $categoria = strtolower(trim((string) ($item['categoria'] ?? '')));
+                if ($categoria === '') {
+                    $categoria = $this->inferirCategoriaPorClave($clave);
+                }
+
+                $params = [
                     ':organizacion_id' => $organizacionId,
                     ':clave' => (string) $item['clave'],
                     ':etiqueta' => (string) $item['etiqueta'],
-                    ':categoria' => (string) ($item['categoria'] ?? 'adicionales'),
                     ':habilitado' => !empty($item['habilitado']) ? 1 : 0,
                     ':obligatorio' => !empty($item['obligatorio']) ? 1 : 0
-                ]);
+                ];
+                if ($columnas['categoria']) {
+                    $params[':categoria'] = $categoria !== '' ? $categoria : 'adicionales';
+                }
+                if ($columnas['depende_de_clave']) {
+                    $params[':depende_de_clave'] = null;
+                }
+                if ($columnas['regla_dependencia']) {
+                    $params[':regla_dependencia'] = null;
+                }
+                if ($columnas['orden']) {
+                    $params[':orden'] = $idx + 1;
+                }
+
+                $stmtInsert->execute($params);
             }
 
             $this->markPendienteInternal($organizacionId);
@@ -404,5 +456,74 @@ final class SetupDAO
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([':organizacion_id' => $organizacionId]);
+    }
+
+    /**
+     * Obtiene columnas disponibles en organizacion_metricas_config.
+     *
+     * @return array<string, bool>
+     */
+    private function getMetricasConfigColumns(): array
+    {
+        if ($this->metricasConfigColumns !== null) {
+            return $this->metricasConfigColumns;
+        }
+
+        $sql = "SELECT LOWER(COLUMN_NAME) AS column_name
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'organizacion_metricas_config'";
+        $stmt = $this->pdo->query($sql);
+        $rows = $stmt ? ($stmt->fetchAll() ?: []) : [];
+
+        $set = [];
+        foreach ($rows as $row) {
+            $col = strtolower((string) ($row['column_name'] ?? ''));
+            if ($col !== '') {
+                $set[$col] = true;
+            }
+        }
+
+        $this->metricasConfigColumns = [
+            'categoria' => isset($set['categoria']),
+            'depende_de_clave' => isset($set['depende_de_clave']),
+            'regla_dependencia' => isset($set['regla_dependencia']),
+            'orden' => isset($set['orden'])
+        ];
+
+        return $this->metricasConfigColumns;
+    }
+
+    /**
+     * Infiere categoria a partir de clave para compatibilidad de esquema.
+     *
+     * @param string $clave
+     * @return string
+     */
+    private function inferirCategoriaPorClave(string $clave): string
+    {
+        if ($clave === 'llegaron_antes_hora' || $clave === 'llegaron_despues_hora') {
+            return 'informacion_culto';
+        }
+        if ($clave === 'ninos' || $clave === 'jovenes') {
+            return 'composicion_asistentes';
+        }
+        if ($clave === 'total_asistentes') {
+            return 'total_asistentes';
+        }
+        if ($clave === 'retiros_antes_terminar' || $clave === 'se_quedaron_todo') {
+            return 'permanencia';
+        }
+        if ($clave === 'observaciones') {
+            return 'observaciones';
+        }
+        if (str_starts_with($clave, 'proc_')) {
+            return 'procedencia';
+        }
+        if (str_starts_with($clave, 'visitas_') || str_starts_with($clave, 'nombres_visitas_')) {
+            return 'visitas';
+        }
+
+        return 'adicionales';
     }
 }
