@@ -31,11 +31,13 @@ final class UsuarioDAO
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
                 LEFT JOIN organizaciones o ON o.id = u.organizacion_id
                 LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE u.usuario = :usuario";
 
         $stmt = $this->pdo->prepare($sql);
@@ -61,11 +63,13 @@ final class UsuarioDAO
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
                 LEFT JOIN organizaciones o ON o.id = u.organizacion_id
                 LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE u.id = :id";
 
         $stmt = $this->pdo->prepare($sql);
@@ -90,11 +94,13 @@ final class UsuarioDAO
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
                 LEFT JOIN organizaciones o ON o.id = u.organizacion_id
                 LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 ORDER BY u.id ASC";
 
         $stmt = $this->pdo->query($sql);
@@ -119,11 +125,13 @@ final class UsuarioDAO
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
                 LEFT JOIN organizaciones o ON o.id = u.organizacion_id
                 LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE u.organizacion_id = :organizacion_id
                 ORDER BY u.id ASC";
 
@@ -151,11 +159,13 @@ final class UsuarioDAO
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
                 LEFT JOIN organizaciones o ON o.id = u.organizacion_id
                 LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE u.id = :id
                   AND u.organizacion_id = :organizacion_id
                 LIMIT 1";
@@ -381,11 +391,13 @@ final class UsuarioDAO
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
                        u.creado_en, u.actualizado_en
                 FROM usuarios u
                 INNER JOIN roles r ON r.id = u.rol_id
                 LEFT JOIN organizaciones o ON o.id = u.organizacion_id
                 LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE u.organizacion_id = :organizacion_id
                   AND r.nombre = 'ADMIN'
                   AND u.activo = 1

@@ -58,6 +58,12 @@ final class UsuarioDTO
     public string $campoNombre;
 
     /** @var string */
+    public string $distritoCodigo;
+
+    /** @var string */
+    public string $distritoNombre;
+
+    /** @var string */
     public string $creadoEn;
 
     /** @var string */

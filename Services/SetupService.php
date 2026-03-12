@@ -229,10 +229,6 @@ final class SetupService
             $faltantes[] = 'metricas';
         }
 
-        if (!empty($this->obtenerInconsistenciasMetricas($metricas))) {
-            $faltantes[] = 'dependencias_metricas';
-        }
-
         return $faltantes;
     }
 
@@ -396,7 +392,7 @@ final class SetupService
     }
 
     /**
-     * Sincroniza metricas derivadas de procedencias activas para que se reflejen en registro.
+     * Sincroniza metricas derivadas de procedencias para que se reflejen en registro.
      *
      * @param int $organizacionId
      * @return void
@@ -444,10 +440,6 @@ final class SetupService
         $metricasDerivadas = [];
         foreach ($procedencias as $procedencia) {
             $activa = $this->toBool($procedencia['activo'] ?? false);
-            if (!$activa) {
-                continue;
-            }
-
             $nombre = trim((string) ($procedencia['nombre'] ?? ''));
             if ($nombre === '') {
                 continue;
@@ -462,23 +454,23 @@ final class SetupService
                 'proc_' . $slug,
                 'Procedencia de ' . $nombre,
                 'procedencia',
-                true,
-                true,
+                $activa,
+                $activa,
                 $metricasPorClave
             );
             $metricasDerivadas[] = $this->construirMetricaProcedencia(
                 'visitas_' . $slug,
-                'Visitas de ' . $nombre,
+                $this->etiquetaVisitasProcedencia($nombre),
                 'visitas',
-                true,
+                $activa,
                 false,
                 $metricasPorClave
             );
             $metricasDerivadas[] = $this->construirMetricaProcedencia(
                 'nombres_visitas_' . $slug,
-                'Nombres visitas de ' . $nombre,
+                $this->etiquetaNombresVisitasProcedencia($nombre),
                 'visitas',
-                true,
+                $activa,
                 false,
                 $metricasPorClave
             );
@@ -561,5 +553,41 @@ final class SetupService
             'habilitado' => $habilitado,
             'obligatorio' => $obligatorio
         ];
+    }
+
+    /**
+     * Etiqueta natural para metrica de visitas por procedencia.
+     *
+     * @param string $nombre
+     * @return string
+     */
+    private function etiquetaVisitasProcedencia(string $nombre): string
+    {
+        $nombreLimpio = trim($nombre);
+        $normalizado = strtolower($this->slugProcedencia($nombreLimpio));
+
+        if ($normalizado === 'barrio') {
+            return 'Visitas del barrio';
+        }
+
+        return 'Visitas de ' . $nombreLimpio;
+    }
+
+    /**
+     * Etiqueta natural para metrica de nombres de visitas por procedencia.
+     *
+     * @param string $nombre
+     * @return string
+     */
+    private function etiquetaNombresVisitasProcedencia(string $nombre): string
+    {
+        $nombreLimpio = trim($nombre);
+        $normalizado = strtolower($this->slugProcedencia($nombreLimpio));
+
+        if ($normalizado === 'barrio') {
+            return 'Nombres de visitas del barrio';
+        }
+
+        return 'Nombres de visitas de ' . $nombreLimpio;
     }
 }

@@ -33,6 +33,8 @@ final class UsuarioMapper
         $dto->organizacionActiva = (bool) ($row['organizacion_activa'] ?? false);
         $dto->campoCodigo     = (string) ($row['campo_codigo'] ?? '');
         $dto->campoNombre     = (string) ($row['campo_nombre'] ?? '');
+        $dto->distritoCodigo  = (string) ($row['distrito_codigo'] ?? '');
+        $dto->distritoNombre  = (string) ($row['distrito_nombre'] ?? '');
         $dto->creadoEn        = (string) ($row['creado_en'] ?? '');
         $dto->actualizadoEn   = (string) ($row['actualizado_en'] ?? '');
 
@@ -60,6 +62,8 @@ final class UsuarioMapper
             'nombre_organizacion' => $dto->nombreOrganizacion !== '' ? $dto->nombreOrganizacion : null,
             'campo'            => $dto->campoCodigo !== '' ? $dto->campoCodigo : null,
             'campo_nombre'     => $dto->campoNombre !== '' ? $dto->campoNombre : null,
+            'distrito'         => $dto->distritoCodigo !== '' ? $dto->distritoCodigo : null,
+            'distrito_nombre'  => $dto->distritoNombre !== '' ? $dto->distritoNombre : null,
             'organizacion_activa' => $dto->organizacionActiva,
             'password_actualizada_en' => $dto->passwordActualizadaEn,
             'password_expira_en' => $dto->passwordExpiraEn !== ''
@@ -86,6 +90,8 @@ final class UsuarioMapper
             'nombre_organizacion' => $dto->nombreOrganizacion !== '' ? $dto->nombreOrganizacion : null,
             'campo'            => $dto->campoCodigo !== '' ? $dto->campoCodigo : null,
             'campo_nombre'     => $dto->campoNombre !== '' ? $dto->campoNombre : null,
+            'distrito'         => $dto->distritoCodigo !== '' ? $dto->distritoCodigo : null,
+            'distrito_nombre'  => $dto->distritoNombre !== '' ? $dto->distritoNombre : null,
             'activa'           => $dto->organizacionActiva
         ];
     }
