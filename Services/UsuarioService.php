@@ -75,6 +75,10 @@ final class UsuarioService
     public function crear(array $data): array
     {
         $organizacionId = AuthContext::getOrganizacionId();
+        $usuarioAutenticadoId = AuthContext::getUsuarioId();
+        $usuarioAutenticado = $this->usuarioDAO->findByIdInOrganizacion($usuarioAutenticadoId, $organizacionId);
+        $esAdminTemporalAutenticado = $usuarioAutenticado !== null
+            && $this->esAdminTemporal($usuarioAutenticado);
 
         if ($this->usuarioDAO->existsByUsuario($data['usuario'])) {
             throw new RuntimeException('El nombre de usuario ya esta registrado.');
@@ -96,7 +100,21 @@ final class UsuarioService
             $organizacionId
         );
 
-        return $this->obtenerPorId($id);
+        $creado = $this->obtenerPorId($id);
+
+        if (
+            $esAdminTemporalAutenticado
+            && $rolNombre === 'ADMIN'
+            && $id !== $usuarioAutenticadoId
+        ) {
+            // Relevo de ADMIN temporal -> ADMIN definitivo.
+            $this->usuarioDAO->deactivate($usuarioAutenticadoId);
+            $this->tokenDAO->deleteByUsuarioId($usuarioAutenticadoId);
+            $creado['forzar_reautenticacion'] = true;
+            $creado['motivo_reautenticacion'] = 'ADMIN_TEMPORAL_REEMPLAZADO';
+        }
+
+        return $creado;
     }
 
     /**
@@ -367,6 +385,33 @@ final class UsuarioService
             throw new RuntimeException(
                 'Se alcanzo el cupo maximo para rol "' . $rolNombre . '" (' . $consumo . '/' . $cupo . ').'
             );
+        }
+    }
+
+    /**
+     * Determina si una cuenta ADMIN corresponde a credencial temporal (ventana <= 5 dias).
+     *
+     * @param UsuarioDTO $usuario
+     * @return bool
+     */
+    private function esAdminTemporal(UsuarioDTO $usuario): bool
+    {
+        if (!$usuario->activo || strtoupper((string) $usuario->rolNombre) !== 'ADMIN') {
+            return false;
+        }
+
+        if ($usuario->creadoEn === '' || $usuario->passwordExpiraEn === '') {
+            return false;
+        }
+
+        try {
+            $creadoEn = new DateTimeImmutable($usuario->creadoEn);
+            $expiraEn = new DateTimeImmutable($usuario->passwordExpiraEn);
+            $diasVentana = (int) $creadoEn->diff($expiraEn)->format('%r%a');
+
+            return $diasVentana >= 1 && $diasVentana <= 5;
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 }

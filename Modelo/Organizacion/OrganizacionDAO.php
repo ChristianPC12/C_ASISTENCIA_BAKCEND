@@ -286,12 +286,22 @@ final class OrganizacionDAO
                              AND ra.nombre = 'ADMIN'
                              AND ua.activo = 1
                        ) AS tiene_admin_activo,
+                       EXISTS(
+                           SELECT 1
+                           FROM usuarios ua
+                           INNER JOIN roles ra ON ra.id = ua.rol_id
+                           WHERE ua.organizacion_id = o.id
+                             AND ra.nombre = 'ADMIN'
+                             AND ua.password_expira_en IS NOT NULL
+                             AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                       ) AS tiene_admin_temporal_registrado,
                        (
                            SELECT ua.usuario
                            FROM usuarios ua
                            INNER JOIN roles ra ON ra.id = ua.rol_id
                            WHERE ua.organizacion_id = o.id
                              AND ra.nombre = 'ADMIN'
+                             AND ua.activo = 1
                            ORDER BY ua.id DESC
                            LIMIT 1
                        ) AS admin_usuario_activo,
@@ -301,13 +311,37 @@ final class OrganizacionDAO
                            INNER JOIN roles ra ON ra.id = ua.rol_id
                            WHERE ua.organizacion_id = o.id
                              AND ra.nombre = 'ADMIN'
+                             AND ua.activo = 1
                            ORDER BY ua.id DESC
                            LIMIT 1
                        ) AS admin_password_expira_en,
                        (
+                           SELECT ua.usuario
+                           FROM usuarios ua
+                           INNER JOIN roles ra ON ra.id = ua.rol_id
+                           WHERE ua.organizacion_id = o.id
+                             AND ra.nombre = 'ADMIN'
+                             AND ua.password_expira_en IS NOT NULL
+                             AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                           ORDER BY ua.id DESC
+                           LIMIT 1
+                       ) AS admin_usuario_temporal,
+                       (
+                           SELECT ua.password_expira_en
+                           FROM usuarios ua
+                           INNER JOIN roles ra ON ra.id = ua.rol_id
+                           WHERE ua.organizacion_id = o.id
+                             AND ra.nombre = 'ADMIN'
+                             AND ua.password_expira_en IS NOT NULL
+                             AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                           ORDER BY ua.id DESC
+                           LIMIT 1
+                       ) AS admin_temporal_expira_en,
+                       (
                            SELECT CASE
                                WHEN ua.password_expira_en IS NOT NULL
                                     AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                                    AND ua.password_expira_en > NOW()
                                THEN 1
                                ELSE 0
                            END
@@ -316,6 +350,8 @@ final class OrganizacionDAO
                            WHERE ua.organizacion_id = o.id
                              AND ra.nombre = 'ADMIN'
                              AND ua.activo = 1
+                             AND ua.password_expira_en IS NOT NULL
+                             AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
                            ORDER BY ua.id DESC
                            LIMIT 1
                        ) AS admin_temporal_activo,
@@ -415,12 +451,22 @@ final class OrganizacionDAO
                                  AND ra.nombre = 'ADMIN'
                                  AND ua.activo = 1
                            ) AS tiene_admin_activo,
+                           EXISTS(
+                               SELECT 1
+                               FROM usuarios ua
+                               INNER JOIN roles ra ON ra.id = ua.rol_id
+                               WHERE ua.organizacion_id = o.id
+                                 AND ra.nombre = 'ADMIN'
+                                 AND ua.password_expira_en IS NOT NULL
+                                 AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                           ) AS tiene_admin_temporal_registrado,
                            (
                                SELECT ua.usuario
                                FROM usuarios ua
                                INNER JOIN roles ra ON ra.id = ua.rol_id
                                WHERE ua.organizacion_id = o.id
                                  AND ra.nombre = 'ADMIN'
+                                 AND ua.activo = 1
                                ORDER BY ua.id DESC
                                LIMIT 1
                            ) AS admin_usuario_activo,
@@ -430,13 +476,37 @@ final class OrganizacionDAO
                                INNER JOIN roles ra ON ra.id = ua.rol_id
                                WHERE ua.organizacion_id = o.id
                                  AND ra.nombre = 'ADMIN'
+                                 AND ua.activo = 1
                                ORDER BY ua.id DESC
                                LIMIT 1
                            ) AS admin_password_expira_en,
                            (
+                               SELECT ua.usuario
+                               FROM usuarios ua
+                               INNER JOIN roles ra ON ra.id = ua.rol_id
+                               WHERE ua.organizacion_id = o.id
+                                 AND ra.nombre = 'ADMIN'
+                                 AND ua.password_expira_en IS NOT NULL
+                                 AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                               ORDER BY ua.id DESC
+                               LIMIT 1
+                           ) AS admin_usuario_temporal,
+                           (
+                               SELECT ua.password_expira_en
+                               FROM usuarios ua
+                               INNER JOIN roles ra ON ra.id = ua.rol_id
+                               WHERE ua.organizacion_id = o.id
+                                 AND ra.nombre = 'ADMIN'
+                                 AND ua.password_expira_en IS NOT NULL
+                                 AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                               ORDER BY ua.id DESC
+                               LIMIT 1
+                           ) AS admin_temporal_expira_en,
+                           (
                                SELECT CASE
                                    WHEN ua.password_expira_en IS NOT NULL
                                         AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
+                                        AND ua.password_expira_en > NOW()
                                    THEN 1
                                    ELSE 0
                                END
@@ -445,6 +515,8 @@ final class OrganizacionDAO
                                WHERE ua.organizacion_id = o.id
                                  AND ra.nombre = 'ADMIN'
                                  AND ua.activo = 1
+                                 AND ua.password_expira_en IS NOT NULL
+                                 AND TIMESTAMPDIFF(DAY, ua.creado_en, ua.password_expira_en) BETWEEN 1 AND 5
                                ORDER BY ua.id DESC
                                LIMIT 1
                            ) AS admin_temporal_activo,

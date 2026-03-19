@@ -21,9 +21,12 @@ final class OrganizacionDTO
     public ?string $correoContacto;
     public bool $activa;
     public bool $tieneAdminActivo;
+    public bool $tieneAdminTemporalRegistrado;
     public bool $adminTemporalActivo;
     public ?string $adminUsuarioActivo;
     public ?string $adminPasswordExpiraEn;
+    public ?string $adminUsuarioTemporal;
+    public ?string $adminTemporalExpiraEn;
     public string $creadoEn;
     public string $actualizadoEn;
 
@@ -42,9 +45,12 @@ final class OrganizacionDTO
         $this->correoContacto = null;
         $this->activa = true;
         $this->tieneAdminActivo = false;
+        $this->tieneAdminTemporalRegistrado = false;
         $this->adminTemporalActivo = false;
         $this->adminUsuarioActivo = null;
         $this->adminPasswordExpiraEn = null;
+        $this->adminUsuarioTemporal = null;
+        $this->adminTemporalExpiraEn = null;
         $this->creadoEn = '';
         $this->actualizadoEn = '';
     }

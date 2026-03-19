@@ -25,7 +25,6 @@ final class UsuarioRoutes
         if ($method === 'GET' && $uri === $v2CuposRoute) {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->obtenerCuposV2();
             return true;
@@ -35,7 +34,6 @@ final class UsuarioRoutes
         if ($method === 'PUT' && $uri === $v2CuposRoute) {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->actualizarCuposV2();
             return true;
@@ -45,7 +43,6 @@ final class UsuarioRoutes
         if ($method === 'GET' && $uri === '/usuarios') {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->listar();
             return true;
@@ -55,7 +52,6 @@ final class UsuarioRoutes
         if ($method === 'GET' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->obtener((int) $matches[1]);
             return true;
@@ -65,7 +61,6 @@ final class UsuarioRoutes
         if ($method === 'POST' && $uri === '/usuarios') {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->crear();
             return true;
@@ -75,7 +70,6 @@ final class UsuarioRoutes
         if ($method === 'PUT' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->actualizar((int) $matches[1]);
             return true;
@@ -85,7 +79,6 @@ final class UsuarioRoutes
         if ($method === 'DELETE' && preg_match($itemPattern, $uri, $matches)) {
             AuthMiddleware::handle();
             RoleMiddleware::denySuperadminInOperative();
-            RoleMiddleware::requireSetupCompletedForOperative();
             $controller = new UsuarioController();
             $controller->eliminar((int) $matches[1]);
             return true;

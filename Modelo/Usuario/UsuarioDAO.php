@@ -133,6 +133,12 @@ final class UsuarioDAO
                 LEFT JOIN campos c ON c.id = o.campo_id
                 LEFT JOIN distritos d ON d.id = o.distrito_id
                 WHERE u.organizacion_id = :organizacion_id
+                  AND NOT (
+                        r.nombre = 'ADMIN'
+                        AND u.activo = 0
+                        AND u.password_expira_en IS NOT NULL
+                        AND TIMESTAMPDIFF(DAY, u.creado_en, u.password_expira_en) BETWEEN 1 AND 5
+                  )
                 ORDER BY u.id ASC";
 
         $stmt = $this->pdo->prepare($sql);

@@ -70,8 +70,12 @@ final class UsuarioController
             $data      = Sanitizer::getJsonBody();
             $validated = UsuarioValidator::validateCreate($data);
             $resultado = $this->usuarioService->crear($validated);
+            $forzarReautenticacion = (bool) ($resultado['forzar_reautenticacion'] ?? false);
+            $mensaje = $forzarReautenticacion
+                ? 'Administrador definitivo creado. La cuenta ADMIN temporal se cerro automaticamente. Inicie sesion con el nuevo usuario.'
+                : 'Usuario creado correctamente.';
 
-            JsonResponse::send(201, true, 'Usuario creado correctamente.', $resultado);
+            JsonResponse::send(201, true, $mensaje, $resultado);
         } catch (InvalidArgumentException $e) {
             JsonResponse::send(400, false, $e->getMessage());
         } catch (RuntimeException $e) {

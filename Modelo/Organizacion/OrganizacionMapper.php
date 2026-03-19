@@ -40,12 +40,19 @@ final class OrganizacionMapper
 
         $dto->activa = (int) ($row['activa'] ?? 0) === 1;
         $dto->tieneAdminActivo = (int) ($row['tiene_admin_activo'] ?? 0) === 1;
+        $dto->tieneAdminTemporalRegistrado = (int) ($row['tiene_admin_temporal_registrado'] ?? 0) === 1;
         $dto->adminTemporalActivo = (int) ($row['admin_temporal_activo'] ?? 0) === 1;
         $dto->adminUsuarioActivo = isset($row['admin_usuario_activo']) && $row['admin_usuario_activo'] !== null
             ? (string) $row['admin_usuario_activo']
             : null;
         $dto->adminPasswordExpiraEn = isset($row['admin_password_expira_en']) && $row['admin_password_expira_en'] !== null
             ? (string) $row['admin_password_expira_en']
+            : null;
+        $dto->adminUsuarioTemporal = isset($row['admin_usuario_temporal']) && $row['admin_usuario_temporal'] !== null
+            ? (string) $row['admin_usuario_temporal']
+            : null;
+        $dto->adminTemporalExpiraEn = isset($row['admin_temporal_expira_en']) && $row['admin_temporal_expira_en'] !== null
+            ? (string) $row['admin_temporal_expira_en']
             : null;
         $dto->creadoEn = (string) ($row['creado_en'] ?? '');
         $dto->actualizadoEn = (string) ($row['actualizado_en'] ?? '');
@@ -74,9 +81,12 @@ final class OrganizacionMapper
             'correo_contacto' => $dto->correoContacto,
             'activa' => $dto->activa,
             'tiene_admin_activo' => $dto->tieneAdminActivo,
+            'tiene_admin_temporal_registrado' => $dto->tieneAdminTemporalRegistrado,
             'admin_temporal_activo' => $dto->adminTemporalActivo,
             'admin_usuario_activo' => $dto->adminUsuarioActivo,
             'admin_password_expira_en' => $dto->adminPasswordExpiraEn,
+            'admin_usuario_temporal' => $dto->adminUsuarioTemporal,
+            'admin_temporal_expira_en' => $dto->adminTemporalExpiraEn,
             'creado_en' => $dto->creadoEn,
             'actualizado_en' => $dto->actualizadoEn
         ];

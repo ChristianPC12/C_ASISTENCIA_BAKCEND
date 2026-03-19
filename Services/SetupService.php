@@ -61,6 +61,7 @@ final class SetupService
                 'cultos_activos' => $this->setupDAO->countCultosActivos($organizacionId),
                 'procedencias_activas' => $this->setupDAO->countProcedenciasActivas($organizacionId),
                 'metricas_habilitadas' => $this->setupDAO->countMetricasHabilitadas($organizacionId),
+                'admins_definitivos_activos' => $this->setupDAO->countAdminsDefinitivosActivos($organizacionId),
                 'dependencias_invalidas' => count($inconsistenciasMetricas)
             ],
             'configuracion' => [
@@ -227,6 +228,11 @@ final class SetupService
         }
         if ($metricasHabilitadas < 1) {
             $faltantes[] = 'metricas';
+        }
+
+        $adminsDefinitivosActivos = $this->setupDAO->countAdminsDefinitivosActivos($organizacionId);
+        if ($adminsDefinitivosActivos < 1) {
+            $faltantes[] = 'admin_definitivo';
         }
 
         return $faltantes;

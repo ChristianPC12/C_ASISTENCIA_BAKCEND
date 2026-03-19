@@ -411,6 +411,30 @@ final class SetupDAO
     }
 
     /**
+     * Cuenta administradores definitivos activos (excluye ADMIN temporal de 5 dias).
+     *
+     * @param int $organizacionId
+     * @return int
+     */
+    public function countAdminsDefinitivosActivos(int $organizacionId): int
+    {
+        $sql = "SELECT COUNT(u.id)
+                FROM usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                WHERE u.organizacion_id = :organizacion_id
+                  AND r.nombre = 'ADMIN'
+                  AND u.activo = 1
+                  AND (
+                        u.password_expira_en IS NULL
+                        OR TIMESTAMPDIFF(DAY, u.creado_en, u.password_expira_en) NOT BETWEEN 1 AND 5
+                  )";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':organizacion_id' => $organizacionId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
      * Marca setup como completo.
      *
      * @param int $organizacionId

@@ -78,7 +78,11 @@ final class AuthMiddleware
         $row = $stmt->fetch();
 
         if ($row === false) {
-            JsonResponse::send(401, false, 'Token invalido o revocado.');
+            JsonResponse::send(
+                401,
+                false,
+                'La sesion ya no es valida. Puede ocurrir si la contrasena fue cambiada o la cuenta fue reemplazada. Inicie sesion nuevamente.'
+            );
         }
 
         if ((int) $row['activo'] !== 1) {
