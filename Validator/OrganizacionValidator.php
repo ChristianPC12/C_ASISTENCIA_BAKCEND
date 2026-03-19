@@ -10,7 +10,9 @@ final class OrganizacionValidator
 {
     private const NOMBRE_MIN = 5;
     private const NOMBRE_MAX = 30;
-    private const NOMBRE_ADMIN_MAX = 30;
+    private const NOMBRE_ADMIN_MAX = 40;
+    private const USUARIO_ADMIN_MIN = 3;
+    private const USUARIO_ADMIN_MAX = 20;
     private const EMAIL_MAX = 30;
 
     private const NOMBRE_REGEX = "/^(?!.*\\d)[\\p{L}\\s\\.,\\-\\'\\(\\)]+$/u";
@@ -105,7 +107,7 @@ final class OrganizacionValidator
         $nombreCompleto = Sanitizer::cleanString($data['nombre_completo']);
         $nombreLen = strlen($nombreCompleto);
         if ($nombreLen < self::NOMBRE_MIN || $nombreLen > self::NOMBRE_ADMIN_MAX) {
-            throw new InvalidArgumentException('El nombre completo debe tener entre 5 y 30 caracteres.');
+            throw new InvalidArgumentException('El nombre completo debe tener entre 5 y 40 caracteres.');
         }
         if (preg_match(self::NOMBRE_REGEX, $nombreCompleto) !== 1) {
             throw new InvalidArgumentException('El nombre completo no permite numeros ni simbolos no validos.');
@@ -117,8 +119,10 @@ final class OrganizacionValidator
 
         $usuario = strtolower(Sanitizer::cleanString($data['usuario']));
         $usuarioLen = strlen($usuario);
-        if ($usuarioLen < 3 || $usuarioLen > 50) {
-            throw new InvalidArgumentException('El usuario debe tener entre 3 y 50 caracteres.');
+        if ($usuarioLen < self::USUARIO_ADMIN_MIN || $usuarioLen > self::USUARIO_ADMIN_MAX) {
+            throw new InvalidArgumentException(
+                'El usuario debe tener entre ' . self::USUARIO_ADMIN_MIN . ' y ' . self::USUARIO_ADMIN_MAX . ' caracteres.'
+            );
         }
         if (preg_match('/^[a-z0-9._-]+$/', $usuario) !== 1) {
             throw new InvalidArgumentException('El usuario solo permite letras, numeros, punto, guion y guion bajo.');
