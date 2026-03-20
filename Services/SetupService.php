@@ -10,6 +10,8 @@ final class SetupService
 {
     private const CLAVE_PUNTUALIDAD_ANTES = 'llegaron_antes_hora';
     private const CLAVE_PUNTUALIDAD_DESPUES = 'llegaron_despues_hora';
+    private const CLAVE_PERMANENCIA_RETIROS = 'retiros_antes_terminar';
+    private const CLAVE_PERMANENCIA_SE_QUEDARON = 'se_quedaron_todo';
     private const CLAVE_TOTAL_ASISTENTES = 'total_asistentes';
     private const CATEGORIAS_VALIDAS = [
         'informacion_culto',
@@ -301,10 +303,15 @@ final class SetupService
 
         $existeAntes = isset($index[self::CLAVE_PUNTUALIDAD_ANTES]);
         $existeDespues = isset($index[self::CLAVE_PUNTUALIDAD_DESPUES]);
+        $existeRetiros = isset($index[self::CLAVE_PERMANENCIA_RETIROS]);
+        $existeSeQuedaron = isset($index[self::CLAVE_PERMANENCIA_SE_QUEDARON]);
         $existeTotal = isset($index[self::CLAVE_TOTAL_ASISTENTES]);
 
         if ($existeAntes xor $existeDespues) {
             $inconsistencias[] = 'puntualidad_incompleta';
+        }
+        if ($existeRetiros xor $existeSeQuedaron) {
+            $inconsistencias[] = 'permanencia_base_incompleta';
         }
         if (!$existeAntes) {
             $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_PUNTUALIDAD_ANTES;
@@ -312,14 +319,19 @@ final class SetupService
         if (!$existeDespues) {
             $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_PUNTUALIDAD_DESPUES;
         }
+        if (!$existeRetiros) {
+            $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_PERMANENCIA_RETIROS;
+        }
+        if (!$existeSeQuedaron) {
+            $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_PERMANENCIA_SE_QUEDARON;
+        }
         if (!$existeTotal) {
             $inconsistencias[] = 'metrica_base_faltante:' . self::CLAVE_TOTAL_ASISTENTES;
         }
 
-        if ($existeAntes && $existeDespues && $existeTotal) {
+        if ($existeAntes && $existeDespues) {
             $antes = $index[self::CLAVE_PUNTUALIDAD_ANTES];
             $despues = $index[self::CLAVE_PUNTUALIDAD_DESPUES];
-            $total = $index[self::CLAVE_TOTAL_ASISTENTES];
 
             if (
                 $antes['habilitado'] !== $despues['habilitado']
@@ -327,14 +339,40 @@ final class SetupService
             ) {
                 $inconsistencias[] = 'puntualidad_ambos_o_ninguno';
             }
+        }
 
-            if ($total['habilitado'] && (!$antes['habilitado'] || !$despues['habilitado'])) {
-                $inconsistencias[] = 'total_sin_puntualidad_habilitada';
-            }
+        if ($existeRetiros && $existeSeQuedaron) {
+            $retiros = $index[self::CLAVE_PERMANENCIA_RETIROS];
+            $seQuedaron = $index[self::CLAVE_PERMANENCIA_SE_QUEDARON];
 
-            if (($antes['habilitado'] || $despues['habilitado']) && !$total['habilitado']) {
-                $inconsistencias[] = 'puntualidad_sin_total_habilitada';
+            if (
+                $retiros['habilitado'] !== $seQuedaron['habilitado']
+                || $retiros['obligatorio'] !== $seQuedaron['obligatorio']
+            ) {
+                $inconsistencias[] = 'permanencia_base_ambos_o_ninguno';
             }
+        }
+
+        $hayInfoCultoHabilitada = false;
+        $hayPermanenciaHabilitada = false;
+        foreach ($index as $metrica) {
+            if (!$metrica['habilitado']) {
+                continue;
+            }
+            if ($metrica['categoria'] === 'informacion_culto') {
+                $hayInfoCultoHabilitada = true;
+            }
+            if ($metrica['categoria'] === 'permanencia') {
+                $hayPermanenciaHabilitada = true;
+            }
+        }
+
+        $totalHabilitado = $existeTotal && $index[self::CLAVE_TOTAL_ASISTENTES]['habilitado'] === true;
+        if ($hayInfoCultoHabilitada && !$totalHabilitado) {
+            $inconsistencias[] = 'info_culto_sin_total_habilitada';
+        }
+        if ($hayPermanenciaHabilitada && !$totalHabilitado) {
+            $inconsistencias[] = 'permanencia_sin_total_habilitada';
         }
 
         return array_values(array_unique($inconsistencias));

@@ -651,11 +651,22 @@ final class AsistenciaService
         }
 
         $normalizadas = [];
+        $categoriasPorClave = [];
+        $esNumericaPorClave = [];
         foreach ($metricasConfigActivas as $config) {
             $clave = strtolower((string) ($config['clave'] ?? ''));
             if ($clave === '') {
                 continue;
             }
+
+            $categoria = strtolower(trim((string) ($config['categoria'] ?? '')));
+            if ($categoria === '') {
+                $categoria = $this->inferirCategoriaMetricaPorClave($clave);
+            }
+            $categoriasPorClave[$clave] = $categoria;
+
+            $esTexto = $this->esMetricaTexto($clave);
+            $esNumericaPorClave[$clave] = !$esTexto;
 
             $valorEntrada = $entrada[$clave] ?? null;
             if (is_string($valorEntrada)) {
@@ -663,10 +674,12 @@ final class AsistenciaService
             }
 
             // Cast suave: numericos a int, texto se conserva.
-            if (is_numeric($valorEntrada) && !is_string($valorEntrada)) {
-                $valorEntrada = (int) $valorEntrada;
-            } elseif (is_string($valorEntrada) && preg_match('/^\d+$/', $valorEntrada) === 1) {
-                $valorEntrada = (int) $valorEntrada;
+            if (!$esTexto) {
+                if (is_numeric($valorEntrada) && !is_string($valorEntrada)) {
+                    $valorEntrada = (int) $valorEntrada;
+                } elseif (is_string($valorEntrada) && preg_match('/^\d+$/', $valorEntrada) === 1) {
+                    $valorEntrada = (int) $valorEntrada;
+                }
             }
 
             $obligatoria = filter_var(
@@ -684,6 +697,8 @@ final class AsistenciaService
 
         $existeAntes = array_key_exists('llegaron_antes_hora', $normalizadas);
         $existeDespues = array_key_exists('llegaron_despues_hora', $normalizadas);
+        $existeRetiros = array_key_exists('retiros_antes_terminar', $normalizadas);
+        $existeSeQuedaron = array_key_exists('se_quedaron_todo', $normalizadas);
         $existeTotal = array_key_exists('total_asistentes', $normalizadas);
 
         if ($existeAntes xor $existeDespues) {
@@ -691,21 +706,81 @@ final class AsistenciaService
                 'Las metricas llegaron_antes_hora y llegaron_despues_hora deben configurarse en par.'
             );
         }
-        if ($existeTotal && (!$existeAntes || !$existeDespues)) {
+
+        if ($existeRetiros xor $existeSeQuedaron) {
             throw new InvalidArgumentException(
-                'La metrica total_asistentes requiere llegaron_antes_hora y llegaron_despues_hora habilitadas.'
+                'Las metricas retiros_antes_terminar y se_quedaron_todo deben configurarse en par.'
             );
         }
 
-        if ($existeAntes && $existeDespues) {
-            $antes = $this->aEnteroNoNegativo($normalizadas['llegaron_antes_hora'] ?? 0);
-            $despues = $this->aEnteroNoNegativo($normalizadas['llegaron_despues_hora'] ?? 0);
+        $clavesInfoCulto = [];
+        $clavesPermanencia = [];
+        foreach ($normalizadas as $clave => $valor) {
+            if (!($esNumericaPorClave[$clave] ?? false)) {
+                continue;
+            }
+            $categoriaClave = $categoriasPorClave[$clave] ?? $this->inferirCategoriaMetricaPorClave($clave);
+            if ($categoriaClave === 'informacion_culto') {
+                $clavesInfoCulto[] = $clave;
+            } elseif ($categoriaClave === 'permanencia') {
+                $clavesPermanencia[] = $clave;
+            }
+        }
 
-            $normalizadas['llegaron_antes_hora'] = $antes;
-            $normalizadas['llegaron_despues_hora'] = $despues;
+        if ((count($clavesInfoCulto) > 0 || count($clavesPermanencia) > 0) && !$existeTotal) {
+            throw new InvalidArgumentException(
+                'La metrica total_asistentes debe estar habilitada cuando hay metricas en informacion_culto o permanencia.'
+            );
+        }
 
-            if ($existeTotal) {
-                $normalizadas['total_asistentes'] = $antes + $despues;
+        if ($existeTotal) {
+            if (count($clavesInfoCulto) > 0) {
+                $sumaInfoCulto = 0;
+                foreach ($clavesInfoCulto as $claveInfo) {
+                    $valorInfo = $this->aEnteroNoNegativo($normalizadas[$claveInfo] ?? 0);
+                    $normalizadas[$claveInfo] = $valorInfo;
+                    $sumaInfoCulto += $valorInfo;
+                }
+                $normalizadas['total_asistentes'] = $sumaInfoCulto;
+            } else {
+                $normalizadas['total_asistentes'] = $this->aEnteroNoNegativo($normalizadas['total_asistentes'] ?? 0);
+            }
+        }
+
+        if (count($clavesPermanencia) > 0) {
+            $totalAsistentes = $this->aEnteroNoNegativo($normalizadas['total_asistentes'] ?? 0);
+            $faltantesPermanencia = [];
+            $sumaPermanenciaConocida = 0;
+
+            foreach ($clavesPermanencia as $clavePermanencia) {
+                $valorPermanencia = $normalizadas[$clavePermanencia] ?? null;
+                if ($this->esMetricaVacia($valorPermanencia)) {
+                    $faltantesPermanencia[] = $clavePermanencia;
+                    continue;
+                }
+                $numeroPermanencia = $this->aEnteroNoNegativo($valorPermanencia);
+                $normalizadas[$clavePermanencia] = $numeroPermanencia;
+                $sumaPermanenciaConocida += $numeroPermanencia;
+            }
+
+            if (count($faltantesPermanencia) === 0) {
+                if ($sumaPermanenciaConocida !== $totalAsistentes) {
+                    throw new InvalidArgumentException(
+                        'La suma de metricas de permanencia debe coincidir con total_asistentes.'
+                    );
+                }
+            } elseif (count($faltantesPermanencia) === 1) {
+                if ($sumaPermanenciaConocida > $totalAsistentes) {
+                    throw new InvalidArgumentException(
+                        'La suma de metricas de permanencia no puede superar total_asistentes.'
+                    );
+                }
+                $claveCalculada = $faltantesPermanencia[0];
+                $normalizadas[$claveCalculada] = $totalAsistentes - $sumaPermanenciaConocida;
+            } else {
+                throw new InvalidArgumentException(
+                    'Para permanencia debe completar al menos N-1 metricas para calcular la restante.'
+                );
             }
         }
 
@@ -716,14 +791,6 @@ final class AsistenciaService
         if ($total > 0 && $total < ($ninos + $jovenes)) {
             throw new InvalidArgumentException(
                 'La metrica total_asistentes no puede ser menor que ninos + jovenes.'
-            );
-        }
-
-        $retiros = $this->aEnteroNoNegativo($normalizadas['retiros_antes_terminar'] ?? 0);
-        $quedaron = $this->aEnteroNoNegativo($normalizadas['se_quedaron_todo'] ?? 0);
-        if ($total > 0 && ($retiros + $quedaron) > $total) {
-            throw new InvalidArgumentException(
-                'La suma de retiros_antes_terminar y se_quedaron_todo no puede superar total_asistentes.'
             );
         }
 
@@ -767,6 +834,50 @@ final class AsistenciaService
             : null;
 
         return $data;
+    }
+
+    /**
+     * Infiere categoria por clave cuando no llega en configuracion.
+     *
+     * @param string $clave
+     * @return string
+     */
+    private function inferirCategoriaMetricaPorClave(string $clave): string
+    {
+        if ($clave === 'llegaron_antes_hora' || $clave === 'llegaron_despues_hora') {
+            return 'informacion_culto';
+        }
+        if ($clave === 'ninos' || $clave === 'jovenes') {
+            return 'composicion_asistentes';
+        }
+        if ($clave === 'total_asistentes') {
+            return 'total_asistentes';
+        }
+        if ($clave === 'retiros_antes_terminar' || $clave === 'se_quedaron_todo') {
+            return 'permanencia';
+        }
+        if ($clave === 'observaciones') {
+            return 'observaciones';
+        }
+        if (str_starts_with($clave, 'proc_')) {
+            return 'procedencia';
+        }
+        if (str_starts_with($clave, 'visitas_') || str_starts_with($clave, 'nombres_visitas_')) {
+            return 'visitas';
+        }
+
+        return 'adicionales';
+    }
+
+    /**
+     * Determina si la clave de metrica se procesa como texto.
+     *
+     * @param string $clave
+     * @return bool
+     */
+    private function esMetricaTexto(string $clave): bool
+    {
+        return $clave === 'observaciones' || str_starts_with($clave, 'nombres_');
     }
 
     /**

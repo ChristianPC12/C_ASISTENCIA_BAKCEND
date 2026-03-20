@@ -145,7 +145,7 @@ final class AsistenciaExportService
             ['Visitas de Guayabo', (string) ($registro['visitas_guayabo'] ?? '0')],
             ['Nombres de visitas de Guayabo', (string) ($registro['nombres_visitas_guayabo'] ?? '')],
             ['Retiros antes de terminar', (string) ($registro['retiros_antes_terminar'] ?? '0')],
-            ['Se quedaron todo el culto', (string) ($registro['se_quedaron_todo'] ?? '0')],
+            ['Se quedaron hasta el final', (string) ($registro['se_quedaron_todo'] ?? '0')],
             ['Observaciones', (string) ($registro['observaciones'] ?? '')],
             ['Registrado por', (string) ($registro['registrado_por_nombre'] ?? '')],
             ['Creado en', (string) ($registro['creado_en'] ?? '')]

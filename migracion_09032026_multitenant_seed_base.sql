@@ -231,7 +231,7 @@ WHERE @org_base IS NOT NULL
 
 INSERT INTO `organizacion_metricas_config`
 (`organizacion_id`, `clave`, `etiqueta`, `habilitado`, `obligatorio`, `depende_de_clave`, `regla_dependencia`, `orden`)
-SELECT @org_base, 'se_quedaron_todo', 'Se quedaron todo', 1, 1, NULL, NULL, 130
+SELECT @org_base, 'se_quedaron_todo', 'Se quedaron hasta el final', 1, 1, NULL, NULL, 130
 WHERE @org_base IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM `organizacion_metricas_config`
