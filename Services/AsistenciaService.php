@@ -715,6 +715,9 @@ final class AsistenciaService
 
         $clavesInfoCulto = [];
         $clavesPermanencia = [];
+        $clavesComposicion = [];
+        $clavesProcedencia = [];
+        $clavesVisitas = [];
         foreach ($normalizadas as $clave => $valor) {
             if (!($esNumericaPorClave[$clave] ?? false)) {
                 continue;
@@ -724,16 +727,32 @@ final class AsistenciaService
                 $clavesInfoCulto[] = $clave;
             } elseif ($categoriaClave === 'permanencia') {
                 $clavesPermanencia[] = $clave;
+            } elseif ($categoriaClave === 'composicion_asistentes') {
+                $clavesComposicion[] = $clave;
+            } elseif ($categoriaClave === 'procedencia') {
+                $clavesProcedencia[] = $clave;
+            } elseif ($categoriaClave === 'visitas') {
+                $clavesVisitas[] = $clave;
             }
         }
 
-        if ((count($clavesInfoCulto) > 0 || count($clavesPermanencia) > 0) && !$existeTotal) {
+        if ((
+            count($clavesInfoCulto) > 0
+            || count($clavesPermanencia) > 0
+            || count($clavesComposicion) > 0
+            || count($clavesProcedencia) > 0
+            || count($clavesVisitas) > 0
+        ) && !$existeTotal) {
             throw new InvalidArgumentException(
-                'La metrica total_asistentes debe estar habilitada cuando hay metricas en informacion_culto o permanencia.'
+                'La metrica total_asistentes debe estar habilitada cuando hay metricas que dependen del total.'
             );
         }
 
         if ($existeTotal) {
+            $totalEntrada = $normalizadas['total_asistentes'] ?? null;
+            $totalVacio = $this->esMetricaVacia($totalEntrada);
+            $totalFueCalculado = false;
+
             if (count($clavesInfoCulto) > 0) {
                 $sumaInfoCulto = 0;
                 foreach ($clavesInfoCulto as $claveInfo) {
@@ -742,8 +761,44 @@ final class AsistenciaService
                     $sumaInfoCulto += $valorInfo;
                 }
                 $normalizadas['total_asistentes'] = $sumaInfoCulto;
+                $totalFueCalculado = true;
             } else {
-                $normalizadas['total_asistentes'] = $this->aEnteroNoNegativo($normalizadas['total_asistentes'] ?? 0);
+                if ($totalVacio && count($clavesPermanencia) > 0) {
+                    $sumaPermanencia = 0;
+                    $faltante = false;
+                    foreach ($clavesPermanencia as $clavePermanencia) {
+                        $valorPermanencia = $normalizadas[$clavePermanencia] ?? null;
+                        if ($this->esMetricaVacia($valorPermanencia)) {
+                            $faltante = true;
+                            break;
+                        }
+                        $sumaPermanencia += $this->aEnteroNoNegativo($valorPermanencia);
+                    }
+
+                    if (!$faltante) {
+                        $normalizadas['total_asistentes'] = $sumaPermanencia;
+                        $totalFueCalculado = true;
+                    }
+                }
+
+                if (!$totalFueCalculado) {
+                    $normalizadas['total_asistentes'] = $this->aEnteroNoNegativo($totalEntrada);
+                }
+            }
+
+            if ($totalVacio && !$totalFueCalculado) {
+                $hayValorQueRequiereTotal = false;
+                $clavesRequierenTotal = array_merge($clavesPermanencia, $clavesComposicion, $clavesProcedencia, $clavesVisitas);
+                foreach ($clavesRequierenTotal as $claveRequiereTotal) {
+                    if (!$this->esMetricaVacia($normalizadas[$claveRequiereTotal] ?? null)) {
+                        $hayValorQueRequiereTotal = true;
+                        break;
+                    }
+                }
+
+                if ($hayValorQueRequiereTotal) {
+                    throw new InvalidArgumentException('La metrica total_asistentes es obligatoria para este registro.');
+                }
             }
         }
 
@@ -784,14 +839,63 @@ final class AsistenciaService
             }
         }
 
-        // Reglas de consistencia historicas (compatibilidad v1).
         $total = $this->aEnteroNoNegativo($normalizadas['total_asistentes'] ?? 0);
-        $ninos = $this->aEnteroNoNegativo($normalizadas['ninos'] ?? 0);
-        $jovenes = $this->aEnteroNoNegativo($normalizadas['jovenes'] ?? 0);
-        if ($total > 0 && $total < ($ninos + $jovenes)) {
-            throw new InvalidArgumentException(
-                'La metrica total_asistentes no puede ser menor que ninos + jovenes.'
-            );
+
+        if (count($clavesComposicion) > 0) {
+            $sumaComposicion = 0;
+            foreach ($clavesComposicion as $claveComposicion) {
+                $valor = $this->aEnteroNoNegativo($normalizadas[$claveComposicion] ?? 0);
+                $normalizadas[$claveComposicion] = $valor;
+                $sumaComposicion += $valor;
+            }
+            if ($sumaComposicion > $total) {
+                throw new InvalidArgumentException(
+                    'La suma de metricas de composicion_asistentes no puede superar total_asistentes.'
+                );
+            }
+        }
+
+        if (count($clavesProcedencia) > 0) {
+            $sumaProcedencia = 0;
+            foreach ($clavesProcedencia as $claveProcedencia) {
+                $valor = $this->aEnteroNoNegativo($normalizadas[$claveProcedencia] ?? 0);
+                $normalizadas[$claveProcedencia] = $valor;
+                $sumaProcedencia += $valor;
+            }
+            if ($sumaProcedencia > $total) {
+                throw new InvalidArgumentException(
+                    'La suma de metricas de procedencia no puede superar total_asistentes.'
+                );
+            }
+        }
+
+        if (count($clavesVisitas) > 0) {
+            foreach ($clavesVisitas as $claveVisitas) {
+                if (!str_starts_with($claveVisitas, 'visitas_')) {
+                    continue;
+                }
+
+                $slug = substr($claveVisitas, strlen('visitas_'));
+                if ($slug === '') {
+                    continue;
+                }
+
+                $claveProcedencia = 'proc_' . $slug;
+                if (!array_key_exists($claveProcedencia, $normalizadas)) {
+                    continue;
+                }
+
+                $visitas = $this->aEnteroNoNegativo($normalizadas[$claveVisitas] ?? 0);
+                $normalizadas[$claveVisitas] = $visitas;
+                $procedencia = $this->aEnteroNoNegativo($normalizadas[$claveProcedencia] ?? 0);
+                $normalizadas[$claveProcedencia] = $procedencia;
+
+                if ($visitas > $procedencia) {
+                    throw new InvalidArgumentException(
+                        'La metrica ' . $claveVisitas . ' no puede superar ' . $claveProcedencia . '.'
+                    );
+                }
+            }
         }
 
         return $normalizadas;

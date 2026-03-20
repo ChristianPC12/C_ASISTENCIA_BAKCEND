@@ -355,6 +355,9 @@ final class SetupService
 
         $hayInfoCultoHabilitada = false;
         $hayPermanenciaHabilitada = false;
+        $hayComposicionHabilitada = false;
+        $hayProcedenciaHabilitada = false;
+        $hayVisitasHabilitada = false;
         foreach ($index as $metrica) {
             if (!$metrica['habilitado']) {
                 continue;
@@ -365,6 +368,15 @@ final class SetupService
             if ($metrica['categoria'] === 'permanencia') {
                 $hayPermanenciaHabilitada = true;
             }
+            if ($metrica['categoria'] === 'composicion_asistentes') {
+                $hayComposicionHabilitada = true;
+            }
+            if ($metrica['categoria'] === 'procedencia') {
+                $hayProcedenciaHabilitada = true;
+            }
+            if ($metrica['categoria'] === 'visitas') {
+                $hayVisitasHabilitada = true;
+            }
         }
 
         $totalHabilitado = $existeTotal && $index[self::CLAVE_TOTAL_ASISTENTES]['habilitado'] === true;
@@ -373,6 +385,15 @@ final class SetupService
         }
         if ($hayPermanenciaHabilitada && !$totalHabilitado) {
             $inconsistencias[] = 'permanencia_sin_total_habilitada';
+        }
+        if ($hayComposicionHabilitada && !$totalHabilitado) {
+            $inconsistencias[] = 'composicion_sin_total_habilitada';
+        }
+        if ($hayProcedenciaHabilitada && !$totalHabilitado) {
+            $inconsistencias[] = 'procedencia_sin_total_habilitada';
+        }
+        if ($hayVisitasHabilitada && !$totalHabilitado) {
+            $inconsistencias[] = 'visitas_sin_total_habilitada';
         }
 
         return array_values(array_unique($inconsistencias));
