@@ -229,14 +229,6 @@ final class SetupValidator
                 }
             }
 
-            $obligatorio = false;
-            if (array_key_exists('obligatorio', $item)) {
-                $obligatorio = filter_var($item['obligatorio'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-                if ($obligatorio === null) {
-                    throw new InvalidArgumentException('Cada "obligatorio" de metrica debe ser booleano.');
-                }
-            }
-
             $categoria = 'adicionales';
             if (array_key_exists('categoria', $item)) {
                 if (!is_string($item['categoria'])) {
@@ -255,7 +247,7 @@ final class SetupValidator
                 'clave' => $clave,
                 'etiqueta' => $etiqueta,
                 'habilitado' => (bool) $habilitado,
-                'obligatorio' => (bool) $obligatorio,
+                'obligatorio' => false,
                 'categoria' => $categoria
             ];
         }

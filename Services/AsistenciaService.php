@@ -682,16 +682,6 @@ final class AsistenciaService
                 }
             }
 
-            $obligatoria = filter_var(
-                $config['obligatorio'] ?? false,
-                FILTER_VALIDATE_BOOLEAN,
-                FILTER_NULL_ON_FAILURE
-            ) === true;
-
-            if ($obligatoria && $this->esMetricaVacia($valorEntrada)) {
-                throw new InvalidArgumentException('La metrica "' . $clave . '" es obligatoria.');
-            }
-
             $normalizadas[$clave] = $valorEntrada;
         }
 
@@ -797,7 +787,7 @@ final class AsistenciaService
                 }
 
                 if ($hayValorQueRequiereTotal) {
-                    throw new InvalidArgumentException('La metrica total_asistentes es obligatoria para este registro.');
+                    throw new InvalidArgumentException('Debe indicar total_asistentes para completar este registro.');
                 }
             }
         }

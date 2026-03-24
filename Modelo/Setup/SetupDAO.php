@@ -235,7 +235,7 @@ final class SetupDAO
         $ordenSql = $columnas['orden'] ? 'ORDER BY orden ASC, id ASC' : 'ORDER BY id ASC';
 
         if ($columnas['categoria']) {
-            $sql = "SELECT clave, etiqueta, categoria, habilitado, obligatorio
+            $sql = "SELECT clave, etiqueta, categoria, habilitado, 0 AS obligatorio
                     FROM organizacion_metricas_config
                     WHERE organizacion_id = :organizacion_id
                     {$ordenSql}";
@@ -247,7 +247,7 @@ final class SetupDAO
         }
 
         $selectLegacyCategoria = $columnas['regla_dependencia'] ? ', regla_dependencia' : '';
-        $sql = "SELECT clave, etiqueta, habilitado, obligatorio{$selectLegacyCategoria}
+        $sql = "SELECT clave, etiqueta, habilitado, 0 AS obligatorio{$selectLegacyCategoria}
                 FROM organizacion_metricas_config
                 WHERE organizacion_id = :organizacion_id
                 {$ordenSql}";
@@ -328,7 +328,7 @@ final class SetupDAO
                     ':clave' => (string) $item['clave'],
                     ':etiqueta' => (string) $item['etiqueta'],
                     ':habilitado' => !empty($item['habilitado']) ? 1 : 0,
-                    ':obligatorio' => !empty($item['obligatorio']) ? 1 : 0
+                    ':obligatorio' => 0
                 ];
                 if ($columnas['categoria']) {
                     $params[':categoria'] = $categoria !== '' ? $categoria : 'adicionales';

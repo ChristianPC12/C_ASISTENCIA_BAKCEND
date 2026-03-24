@@ -277,7 +277,7 @@ final class SetupService
             $index[$clave] = [
                 'clave' => $clave,
                 'habilitado' => $this->toBool($item['habilitado'] ?? false),
-                'obligatorio' => $this->toBool($item['obligatorio'] ?? false),
+                'obligatorio' => false,
                 'categoria' => $categoria
             ];
         }
@@ -285,10 +285,6 @@ final class SetupService
         $inconsistencias = [];
 
         foreach ($index as $clave => $metrica) {
-            if ($metrica['obligatorio'] && !$metrica['habilitado']) {
-                $inconsistencias[] = 'obligatorio_sin_habilitar:' . $clave;
-            }
-
             $categoria = (string) ($metrica['categoria'] ?? '');
             if (!in_array($categoria, self::CATEGORIAS_VALIDAS, true)) {
                 $inconsistencias[] = 'categoria_no_valida:' . $clave . '->' . $categoria;
@@ -333,10 +329,7 @@ final class SetupService
             $antes = $index[self::CLAVE_PUNTUALIDAD_ANTES];
             $despues = $index[self::CLAVE_PUNTUALIDAD_DESPUES];
 
-            if (
-                $antes['habilitado'] !== $despues['habilitado']
-                || $antes['obligatorio'] !== $despues['obligatorio']
-            ) {
+            if ($antes['habilitado'] !== $despues['habilitado']) {
                 $inconsistencias[] = 'puntualidad_ambos_o_ninguno';
             }
         }
@@ -345,10 +338,7 @@ final class SetupService
             $retiros = $index[self::CLAVE_PERMANENCIA_RETIROS];
             $seQuedaron = $index[self::CLAVE_PERMANENCIA_SE_QUEDARON];
 
-            if (
-                $retiros['habilitado'] !== $seQuedaron['habilitado']
-                || $retiros['obligatorio'] !== $seQuedaron['obligatorio']
-            ) {
+            if ($retiros['habilitado'] !== $seQuedaron['habilitado']) {
                 $inconsistencias[] = 'permanencia_base_ambos_o_ninguno';
             }
         }
@@ -491,14 +481,13 @@ final class SetupService
             }
 
             $habilitado = $this->toBool($item['habilitado'] ?? false);
-            $obligatorio = $habilitado ? $this->toBool($item['obligatorio'] ?? false) : false;
 
             $metricasBase[] = [
                 'clave' => $clave,
                 'etiqueta' => (string) ($item['etiqueta'] ?? $clave),
                 'categoria' => $categoria,
                 'habilitado' => $habilitado,
-                'obligatorio' => $obligatorio
+                'obligatorio' => false
             ];
         }
 
@@ -520,7 +509,6 @@ final class SetupService
                 'Procedencia de ' . $nombre,
                 'procedencia',
                 $activa,
-                $activa,
                 $metricasPorClave
             );
             $metricasDerivadas[] = $this->construirMetricaProcedencia(
@@ -528,7 +516,6 @@ final class SetupService
                 $this->etiquetaVisitasProcedencia($nombre),
                 'visitas',
                 $activa,
-                false,
                 $metricasPorClave
             );
             $metricasDerivadas[] = $this->construirMetricaProcedencia(
@@ -536,7 +523,6 @@ final class SetupService
                 $this->etiquetaNombresVisitasProcedencia($nombre),
                 'visitas',
                 $activa,
-                false,
                 $metricasPorClave
             );
         }
@@ -587,7 +573,6 @@ final class SetupService
      * @param string $etiqueta
      * @param string $categoria
      * @param bool $habilitadoDefault
-     * @param bool $obligatorioDefault
      * @param array<string, array<string, mixed>> $metricasPorClave
      * @return array<string, mixed>
      */
@@ -596,27 +581,19 @@ final class SetupService
         string $etiqueta,
         string $categoria,
         bool $habilitadoDefault,
-        bool $obligatorioDefault,
         array $metricasPorClave
     ): array {
         $actual = $metricasPorClave[$clave] ?? null;
         $habilitado = $actual !== null
             ? $this->toBool($actual['habilitado'] ?? false)
             : $habilitadoDefault;
-        $obligatorio = $actual !== null
-            ? $this->toBool($actual['obligatorio'] ?? false)
-            : $obligatorioDefault;
-
-        if (!$habilitado) {
-            $obligatorio = false;
-        }
 
         return [
             'clave' => $clave,
             'etiqueta' => $etiqueta,
             'categoria' => $categoria,
             'habilitado' => $habilitado,
-            'obligatorio' => $obligatorio
+            'obligatorio' => false
         ];
     }
 
