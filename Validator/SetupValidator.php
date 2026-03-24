@@ -20,8 +20,9 @@ final class SetupValidator
             throw new InvalidArgumentException('El campo "cultos" es obligatorio y debe ser una lista.');
         }
 
-        if (count($data['cultos']) < 1) {
-            throw new InvalidArgumentException('Debe enviar al menos un culto.');
+        $count = count($data['cultos']);
+        if ($count < 1 || $count > 10) {
+            throw new InvalidArgumentException('Debe enviar entre 1 y 10 cultos.');
         }
 
         $cultos = [];
@@ -43,7 +44,7 @@ final class SetupValidator
             }
             $codigos[$codigo] = true;
 
-            $nombre = self::requireString($item, 'nombre', 3, 80);
+            $nombre = self::requireString($item, 'nombre', 3, 20);
 
             if (!isset($item['dia_semana']) || !is_numeric($item['dia_semana'])) {
                 throw new InvalidArgumentException('Cada culto requiere "dia_semana" numerico.');
