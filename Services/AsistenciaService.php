@@ -823,9 +823,21 @@ final class AsistenciaService
                 $claveCalculada = $faltantesPermanencia[0];
                 $normalizadas[$claveCalculada] = $totalAsistentes - $sumaPermanenciaConocida;
             } else {
-                throw new InvalidArgumentException(
-                    'Para permanencia debe completar al menos N-1 metricas para calcular la restante.'
-                );
+                if ($sumaPermanenciaConocida > $totalAsistentes) {
+                    throw new InvalidArgumentException(
+                        'La suma de metricas de permanencia no puede superar total_asistentes.'
+                    );
+                }
+
+                if ($sumaPermanenciaConocida === $totalAsistentes) {
+                    foreach ($faltantesPermanencia as $claveFaltante) {
+                        $normalizadas[$claveFaltante] = 0;
+                    }
+                } else {
+                    throw new InvalidArgumentException(
+                        'Para permanencia debe completar al menos N-1 metricas para calcular la restante.'
+                    );
+                }
             }
         }
 
