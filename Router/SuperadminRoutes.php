@@ -21,6 +21,8 @@ final class SuperadminRoutes
         $adminTemporalPattern = '#^/v2/superadmin/organizaciones/(\d+)/admin-temporal$#';
         $campoPattern = '#^/v2/superadmin/campos/([A-Z0-9]{2,10})$#i';
         $distritoPattern = '#^/v2/superadmin/distritos/([A-Z0-9_]{2,24})$#i';
+        $superadminUsuarioPattern = '#^/v2/superadmin/usuarios-superadmin/(\d+)$#';
+        $superadminUsuarioPasswordPattern = '#^/v2/superadmin/usuarios-superadmin/(\d+)/password$#';
 
         // GET /v2/superadmin/organizaciones
         if ($method === 'GET' && $uri === '/v2/superadmin/organizaciones') {
@@ -55,6 +57,42 @@ final class SuperadminRoutes
             RoleMiddleware::requireSuperadmin();
             $controller = new SuperadminOrganizacionController();
             $controller->crearAdminTemporal((int) $matches[1]);
+            return true;
+        }
+
+        // GET /v2/superadmin/usuarios-superadmin
+        if ($method === 'GET' && $uri === '/v2/superadmin/usuarios-superadmin') {
+            AuthMiddleware::handle();
+            RoleMiddleware::requireSuperadmin();
+            $controller = new SuperadminUsuarioController();
+            $controller->listar();
+            return true;
+        }
+
+        // POST /v2/superadmin/usuarios-superadmin
+        if ($method === 'POST' && $uri === '/v2/superadmin/usuarios-superadmin') {
+            AuthMiddleware::handle();
+            RoleMiddleware::requireSuperadmin();
+            $controller = new SuperadminUsuarioController();
+            $controller->crear();
+            return true;
+        }
+
+        // PUT /v2/superadmin/usuarios-superadmin/{id}
+        if ($method === 'PUT' && preg_match($superadminUsuarioPattern, $uri, $matches)) {
+            AuthMiddleware::handle();
+            RoleMiddleware::requireSuperadmin();
+            $controller = new SuperadminUsuarioController();
+            $controller->actualizar((int) $matches[1]);
+            return true;
+        }
+
+        // PUT /v2/superadmin/usuarios-superadmin/{id}/password
+        if ($method === 'PUT' && preg_match($superadminUsuarioPasswordPattern, $uri, $matches)) {
+            AuthMiddleware::handle();
+            RoleMiddleware::requireSuperadmin();
+            $controller = new SuperadminUsuarioController();
+            $controller->actualizarPassword((int) $matches[1]);
             return true;
         }
 

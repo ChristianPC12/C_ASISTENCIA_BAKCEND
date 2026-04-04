@@ -56,3 +56,10 @@ Cualquier cambio backend que altere auth, roles, rutas o contrato de datos debe 
 ## Nota operativa
 
 El siguiente bloque de trabajo lo define el owner funcional segun prioridad de modulo.
+
+## Estado actual de modulos misioneros (2026-04-04)
+- Ya estan creadas y aplicadas las migraciones base y operativas de contactos, seguimiento, auditoria, Campanas, Estudios Biblicos, PC y Juntas.
+- Ya existen endpoints tenant-aware funcionales para los 4 modulos nuevos.
+- Ya existe integracion cruzada Campana -> Estudio Biblico y PC -> Estudio Biblico con auditoria y persistencia de estado en el modulo origen.
+- Si otro chat recibe la instruccion 'estudia los agents', debe asumir como siguiente bloque natural reportes/exportaciones, pruebas funcionales mas profundas y mas integraciones cruzadas, sin romper el aislamiento por organizacion_id.
+

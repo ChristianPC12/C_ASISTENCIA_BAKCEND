@@ -99,6 +99,11 @@ final class AsistenciaDAO
             $params[':fecha_exacta'] = $filtros['fecha_exacta'];
         }
 
+        if (!empty($filtros['creado_hasta'])) {
+            $where[]                 = "ar.creado_en <= :creado_hasta";
+            $params[':creado_hasta'] = $filtros['creado_hasta'];
+        }
+
         $sql .= " WHERE " . implode(' AND ', $where);
         $sql .= " ORDER BY ar.fecha DESC, ar.culto_id ASC";
 

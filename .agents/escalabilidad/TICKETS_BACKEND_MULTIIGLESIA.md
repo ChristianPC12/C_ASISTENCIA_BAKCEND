@@ -108,3 +108,15 @@ Soporte operativo/documental B7-T03:
 - Servicios de setup/asistencia reforzados con reglas internas para:
   - par obligatorio de puntualidad,
   - coherencia de `total_asistentes`.
+## Notas de pulido post-B7 (2026-04-01)
+
+- Sin reapertura de fases ni cambio de estados `[ ]/[~]/[x]`.
+- `PresentacionService` normaliza en lectura presentaciones legadas para:
+  - reemplazar narrativa técnica por lenguaje simple,
+  - recalcular categorías dinámicas completas,
+  - respetar snapshot histórico con corte por `creado_en`.
+
+## Cierre 2026-04-02
+- Ticket resuelto: CRUD operativo para cuentas SUPERADMIN globales.
+- Ticket resuelto: revocación de tokens al cambiar contraseña de SUPERADMIN.
+- Ticket resuelto: creación de campo global sin exponer código manual en frontend.

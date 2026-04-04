@@ -28,7 +28,7 @@ final class AsistenciaService
     /**
      * Lista registros de asistencia con filtros opcionales.
      *
-     * @param array<string, mixed> $filtros Filtros: culto (codigo), anio, trimestre, mes, fecha_exacta.
+     * @param array<string, mixed> $filtros Filtros: culto (codigo), anio, trimestre, mes, fecha_exacta, creado_hasta.
      * @return array<int, array<string, mixed>>
      */
     public function listar(array $filtros): array
@@ -60,6 +60,10 @@ final class AsistenciaService
 
         if (!empty($filtros['fecha_exacta'])) {
             $filtrosDAO['fecha_exacta'] = $this->normalizarFechaExacta((string) $filtros['fecha_exacta']);
+        }
+
+        if (!empty($filtros['creado_hasta'])) {
+            $filtrosDAO['creado_hasta'] = (string) $filtros['creado_hasta'];
         }
 
         $registros = $this->asistenciaDAO->findAll($filtrosDAO, $organizacionId);

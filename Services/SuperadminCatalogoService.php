@@ -46,17 +46,21 @@ final class SuperadminCatalogoService
      */
     public function crearCampo(array $data): array
     {
-        $codigo = (string) $data['codigo'];
         $nombre = (string) $data['nombre'];
         $activo = array_key_exists('activo', $data) && is_bool($data['activo'])
             ? $data['activo']
             : true;
+        $camposActuales = $this->organizacionDAO->listCampos();
+
+        $codigo = is_string($data['codigo'] ?? null) && $data['codigo'] !== ''
+            ? (string) $data['codigo']
+            : $this->generarCodigoCampo($nombre, $camposActuales);
 
         if ($this->organizacionDAO->findCampoByCodigo($codigo) !== null) {
             throw new RuntimeException('Ya existe un campo con ese codigo.');
         }
 
-        if ($this->existeNombreCatalogo($this->organizacionDAO->listCampos(), $nombre)) {
+        if ($this->existeNombreCatalogo($camposActuales, $nombre)) {
             throw new RuntimeException('Ya existe un campo con ese nombre.');
         }
 
@@ -293,6 +297,42 @@ final class SuperadminCatalogoService
     }
 
     /**
+     * Genera un codigo de campo unico basado en el nombre.
+     *
+     * @param string                            $nombre
+     * @param array<int, array<string, mixed>> $existentes
+     * @return string
+     */
+    private function generarCodigoCampo(string $nombre, array $existentes): string
+    {
+        $codigos = [];
+        foreach ($existentes as $item) {
+            $codigo = strtoupper((string) ($item['codigo'] ?? ''));
+            if ($codigo !== '') {
+                $codigos[$codigo] = true;
+            }
+        }
+
+        $base = $this->normalizarCodigoCampo($nombre);
+        if ($base === '') {
+            $base = 'CAMPO';
+        }
+
+        if (!isset($codigos[$base])) {
+            return $base;
+        }
+
+        for ($i = 2; $i <= 999; $i++) {
+            $candidate = $this->normalizarCodigoCampo($base . $i);
+            if ($candidate !== '' && !isset($codigos[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        throw new RuntimeException('No hay codigos disponibles para crear el campo.');
+    }
+
+    /**
      * @param string $nombre
      * @return string
      */
@@ -328,6 +368,23 @@ final class SuperadminCatalogoService
         $codigo = substr($codigo, 0, 24);
 
         if ($codigo === '' || preg_match('/^[A-Z0-9_]{2,24}$/', $codigo) !== 1) {
+            return '';
+        }
+
+        return $codigo;
+    }
+
+    /**
+     * @param string $nombre
+     * @return string
+     */
+    private function normalizarCodigoCampo(string $nombre): string
+    {
+        $ascii = $this->normalizarNombre($nombre);
+        $codigo = preg_replace('/[^A-Z0-9]+/', '', $ascii) ?? '';
+        $codigo = substr($codigo, 0, 10);
+
+        if ($codigo === '' || preg_match('/^[A-Z0-9]{2,10}$/', $codigo) !== 1) {
             return '';
         }
 

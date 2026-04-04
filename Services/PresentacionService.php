@@ -20,13 +20,13 @@ final class PresentacionService
     /** @var array<int, string> */
     private const SECTION_IDS = [
         'resumen_ejecutivo',
-        'kpis_clave',
+        'datos_clave',
         'tendencias',
         'composicion',
         'puntualidad',
+        'permanencia',
         'procedencia',
-        'visitas',
-        'conclusiones_acciones'
+        'visitas'
     ];
 
     public function __construct()
@@ -69,7 +69,7 @@ final class PresentacionService
             );
         }
 
-        $registros = $this->asistenciaService->listar($filtrosConsulta);
+        $registros = $this->listarRegistrosPresentacion($filtrosConsulta);
         if (count($registros) === 0) {
             throw new RuntimeException('No hay registros en el mes seleccionado. No se puede generar la presentacion.', 422);
         }
@@ -126,6 +126,7 @@ final class PresentacionService
 
         $itemsResumen = [];
         foreach ($items as $item) {
+            $item = $this->normalizarPresentacionDTO($item);
             $itemsResumen[] = PresentacionMapper::toSummaryArray($item);
         }
 
@@ -155,6 +156,7 @@ final class PresentacionService
             throw new DomainException('No tiene permisos para ver esta presentacion.');
         }
 
+        $dto = $this->normalizarPresentacionDTO($dto);
         return PresentacionMapper::toArray($dto);
     }
 
@@ -165,6 +167,9 @@ final class PresentacionService
      */
     private function construirMetricas(array $registros, array $filtros): array
     {
+        $organizacionId = AuthContext::getOrganizacionId();
+        [$etiquetasPorClave, $categoriasPorClave] = $this->obtenerContextoMetricas($organizacionId);
+
         $totalRegistros = count($registros);
         $totalAsistentes = 0;
         $maximo = 0;
@@ -174,6 +179,8 @@ final class PresentacionService
         $jovenes = 0;
         $antes = 0;
         $despues = 0;
+        $retiros = 0;
+        $seQuedaron = 0;
         $procBarrio = 0;
         $procGuayabo = 0;
         $visitasBarrio = 0;
@@ -185,6 +192,13 @@ final class PresentacionService
         $metricasMax = [];
         $metricasMin = [];
         $metricasCount = [];
+        $categoriasAcumuladas = [
+            'composicion_asistentes' => [],
+            'informacion_culto' => [],
+            'permanencia' => [],
+            'procedencia' => [],
+            'visitas' => []
+        ];
 
         foreach ($registros as $registro) {
             $asistentes = (int) ($registro['total_asistentes'] ?? 0);
@@ -193,6 +207,8 @@ final class PresentacionService
             $jovenes += (int) ($registro['jovenes'] ?? 0);
             $antes += (int) ($registro['llegaron_antes_hora'] ?? 0);
             $despues += (int) ($registro['llegaron_despues_hora'] ?? 0);
+            $retiros += (int) ($registro['retiros_antes_terminar'] ?? 0);
+            $seQuedaron += (int) ($registro['se_quedaron_todo'] ?? 0);
             $procBarrio += (int) ($registro['proc_barrio'] ?? 0);
             $procGuayabo += (int) ($registro['proc_guayabo'] ?? 0);
             $visitasBarrio += (int) ($registro['visitas_barrio'] ?? 0);
@@ -215,9 +231,6 @@ final class PresentacionService
                 $seriesPorFecha[$fecha] += $asistentes;
             }
 
-            $this->acumularNombres($frecuenciaNombres, (string) ($registro['nombres_visitas_barrio'] ?? ''));
-            $this->acumularNombres($frecuenciaNombres, (string) ($registro['nombres_visitas_guayabo'] ?? ''));
-
             $metricas = $registro['metricas'] ?? null;
             if (is_array($metricas)) {
                 foreach ($metricas as $clave => $valor) {
@@ -234,13 +247,7 @@ final class PresentacionService
                         $this->acumularNombres($frecuenciaNombres, $valor);
                     }
 
-                    $numero = null;
-                    if (is_int($valor) || is_float($valor)) {
-                        $numero = (float) $valor;
-                    } elseif (is_string($valor) && preg_match('/^-?\d+(\.\d+)?$/', trim($valor)) === 1) {
-                        $numero = (float) $valor;
-                    }
-
+                    $numero = $this->resolverNumeroMetrica($valor);
                     if ($numero === null) {
                         continue;
                     }
@@ -261,6 +268,14 @@ final class PresentacionService
                     if ($numero < $metricasMin[$clave]) {
                         $metricasMin[$clave] = $numero;
                     }
+
+                    $categoria = $categoriasPorClave[$clave] ?? $this->inferirCategoriaPresentacion($clave);
+                    if (!isset($categoriasAcumuladas[$categoria])) {
+                        continue;
+                    }
+
+                    $etiqueta = $etiquetasPorClave[$clave] ?? $this->humanizarClavePresentacion($clave);
+                    $this->acumularTotalCategoria($categoriasAcumuladas[$categoria], $etiqueta, $numero);
                 }
             }
         }
@@ -284,14 +299,19 @@ final class PresentacionService
             ];
         }
 
-        $baseComposicion = $ninos + $jovenes;
-        $basePuntualidad = $antes + $despues;
-        $baseProcedencia = $procBarrio + $procGuayabo;
-        $totalVisitas = $visitasBarrio + $visitasGuayabo;
+        $baseComposicion = (int) round(array_sum($categoriasAcumuladas['composicion_asistentes']));
+        $basePuntualidad = (int) round(array_sum($categoriasAcumuladas['informacion_culto']));
+        $basePermanencia = (int) round(array_sum($categoriasAcumuladas['permanencia']));
+        $baseProcedencia = (int) round(array_sum($categoriasAcumuladas['procedencia']));
+        $totalVisitas = (int) round(array_sum($categoriasAcumuladas['visitas']));
 
         ksort($metricasSuma);
         $metricasDinamicas = [];
         foreach ($metricasSuma as $clave => $suma) {
+            if (abs($suma) < 0.00001) {
+                continue;
+            }
+
             $count = (int) ($metricasCount[$clave] ?? 0);
             $promedioMetrica = $count > 0 ? round($suma / $count, 2) : 0.0;
             $metricasDinamicas[] = [
@@ -303,6 +323,12 @@ final class PresentacionService
                 'registros' => $count
             ];
         }
+
+        $composicionItems = $this->mapearItemsCategoria($categoriasAcumuladas['composicion_asistentes'], $baseComposicion);
+        $puntualidadItems = $this->mapearItemsCategoria($categoriasAcumuladas['informacion_culto'], $basePuntualidad);
+        $permanenciaItems = $this->mapearItemsCategoria($categoriasAcumuladas['permanencia'], $basePermanencia);
+        $procedenciaItems = $this->mapearItemsCategoria($categoriasAcumuladas['procedencia'], $baseProcedencia);
+        $visitasItems = $this->mapearItemsCategoria($categoriasAcumuladas['visitas'], $totalVisitas);
 
         return [
             'periodo' => [
@@ -326,7 +352,8 @@ final class PresentacionService
                 'jovenes' => [
                     'cantidad' => $jovenes,
                     'porcentaje' => $this->porcentaje($jovenes, $baseComposicion)
-                ]
+                ],
+                'items' => $composicionItems
             ],
             'puntualidad' => [
                 'antes' => [
@@ -336,7 +363,20 @@ final class PresentacionService
                 'despues' => [
                     'cantidad' => $despues,
                     'porcentaje' => $this->porcentaje($despues, $basePuntualidad)
-                ]
+                ],
+                'items' => $puntualidadItems
+            ],
+            'permanencia' => [
+                'retiros_antes_terminar' => [
+                    'cantidad' => $retiros,
+                    'porcentaje' => $this->porcentaje($retiros, $basePermanencia)
+                ],
+                'se_quedaron_todo' => [
+                    'cantidad' => $seQuedaron,
+                    'porcentaje' => $this->porcentaje($seQuedaron, $basePermanencia)
+                ],
+                'items' => $permanenciaItems,
+                'total' => $basePermanencia
             ],
             'procedencia' => [
                 'barrio' => [
@@ -346,7 +386,8 @@ final class PresentacionService
                 'guayabo' => [
                     'cantidad' => $procGuayabo,
                     'porcentaje' => $this->porcentaje($procGuayabo, $baseProcedencia)
-                ]
+                ],
+                'items' => $procedenciaItems
             ],
             'visitas' => [
                 'total_visitas' => $totalVisitas,
@@ -358,6 +399,7 @@ final class PresentacionService
                     'cantidad' => $visitasGuayabo,
                     'porcentaje' => $this->porcentaje($visitasGuayabo, $totalVisitas)
                 ],
+                'items' => $visitasItems,
                 'top_nombres' => $topNombres
             ],
             'series' => [
@@ -384,16 +426,16 @@ final class PresentacionService
             '- Usa solo METRICAS_CANONICAS.',
             '- No inventar datos ni porcentajes.',
             '- Manten el orden exacto de secciones.',
-            '- Texto formal y conciso.',
+            '- Texto claro, breve y entendible para usuarios no tecnicos.',
             'SECCIONES_OBLIGATORIAS_ORDEN:',
             '1) resumen_ejecutivo',
-            '2) kpis_clave',
+            '2) datos_clave',
             '3) tendencias',
             '4) composicion',
             '5) puntualidad',
-            '6) procedencia',
-            '7) visitas',
-            '8) conclusiones_acciones',
+            '6) permanencia',
+            '7) procedencia',
+            '8) visitas',
             'METRICAS_CANONICAS:',
             $metricasJson
         ]);
@@ -408,51 +450,63 @@ final class PresentacionService
         $resumen = is_array($metricas['resumen'] ?? null) ? $metricas['resumen'] : [];
         $composicion = is_array($metricas['composicion'] ?? null) ? $metricas['composicion'] : [];
         $puntualidad = is_array($metricas['puntualidad'] ?? null) ? $metricas['puntualidad'] : [];
+        $permanencia = is_array($metricas['permanencia'] ?? null) ? $metricas['permanencia'] : [];
         $procedencia = is_array($metricas['procedencia'] ?? null) ? $metricas['procedencia'] : [];
         $visitas = is_array($metricas['visitas'] ?? null) ? $metricas['visitas'] : [];
-        $series = is_array($metricas['series']['asistencia_por_fecha'] ?? null) ? $metricas['series']['asistencia_por_fecha'] : [];
-        $metricasDinamicas = is_array($metricas['metricas_dinamicas'] ?? null) ? $metricas['metricas_dinamicas'] : [];
+        $series = is_array($metricas['series']['asistencia_por_fecha'] ?? null)
+            ? $metricas['series']['asistencia_por_fecha']
+            : [];
 
         $totalRegistros = (int) ($resumen['total_registros'] ?? 0);
         $totalAsistentes = (int) ($resumen['total_asistentes'] ?? 0);
         $promedio = (float) ($resumen['promedio_por_culto'] ?? 0);
         $maximo = (int) ($resumen['maximo_asistentes'] ?? 0);
         $minimo = (int) ($resumen['minimo_asistentes'] ?? 0);
-
-        $ninosCant = (int) ($composicion['ninos']['cantidad'] ?? 0);
-        $ninosPct = (float) ($composicion['ninos']['porcentaje'] ?? 0);
-        $jovenesCant = (int) ($composicion['jovenes']['cantidad'] ?? 0);
-        $jovenesPct = (float) ($composicion['jovenes']['porcentaje'] ?? 0);
-
-        $antesCant = (int) ($puntualidad['antes']['cantidad'] ?? 0);
-        $antesPct = (float) ($puntualidad['antes']['porcentaje'] ?? 0);
-        $despuesCant = (int) ($puntualidad['despues']['cantidad'] ?? 0);
-        $despuesPct = (float) ($puntualidad['despues']['porcentaje'] ?? 0);
-
-        $barrioCant = (int) ($procedencia['barrio']['cantidad'] ?? 0);
-        $barrioPct = (float) ($procedencia['barrio']['porcentaje'] ?? 0);
-        $guayaboCant = (int) ($procedencia['guayabo']['cantidad'] ?? 0);
-        $guayaboPct = (float) ($procedencia['guayabo']['porcentaje'] ?? 0);
-
         $visitasTotal = (int) ($visitas['total_visitas'] ?? 0);
-        $visitasBarrio = (int) ($visitas['barrio']['cantidad'] ?? 0);
-        $visitasBarrioPct = (float) ($visitas['barrio']['porcentaje'] ?? 0);
-        $visitasGuayabo = (int) ($visitas['guayabo']['cantidad'] ?? 0);
-        $visitasGuayaboPct = (float) ($visitas['guayabo']['porcentaje'] ?? 0);
+
         $topNombres = is_array($visitas['top_nombres'] ?? null) ? $visitas['top_nombres'] : [];
+        $composicionItems = is_array($composicion['items'] ?? null) ? $composicion['items'] : [];
+        $puntualidadItems = is_array($puntualidad['items'] ?? null) ? $puntualidad['items'] : [];
+        $permanenciaItems = is_array($permanencia['items'] ?? null) ? $permanencia['items'] : [];
+        $procedenciaItems = is_array($procedencia['items'] ?? null) ? $procedencia['items'] : [];
+        $visitasItems = is_array($visitas['items'] ?? null) ? $visitas['items'] : [];
 
         $primer = count($series) > 0 ? (int) ($series[0]['total_asistentes'] ?? 0) : 0;
         $ultimo = count($series) > 0 ? (int) ($series[count($series) - 1]['total_asistentes'] ?? 0) : 0;
         $variacionAbs = $ultimo - $primer;
         $variacionPct = $primer > 0 ? round(($variacionAbs / $primer) * 100, 2) : 0.0;
         $direccionTendencia = $variacionAbs > 0 ? 'crecimiento' : ($variacionAbs < 0 ? 'descenso' : 'estabilidad');
+        $hayComparacion = count($series) > 1;
 
         $topNombresTexto = $this->formatearTopNombres($topNombres);
-        $topMetricasDinamicas = $this->formatearTopMetricasDinamicas($metricasDinamicas);
-        $acciones = $this->construirAccionesDeterministicas($metricas, $variacionPct);
         $mesEtiqueta = (string) ($periodo['mes_etiqueta'] ?? 'Mes');
         $anio = (int) ($periodo['anio'] ?? 0);
         $cultoCodigo = (string) ($periodo['culto_codigo'] ?? 'TODOS');
+        $ambitoCulto = $cultoCodigo === 'TODOS' ? '' : (' del culto ' . $cultoCodigo);
+
+        $resumenTopComposicion = $this->resumenCortoCategoria($composicionItems);
+        $resumenTopPuntualidad = $this->resumenCortoCategoria($puntualidadItems);
+        $resumenTopPermanencia = $this->resumenCortoCategoria($permanenciaItems);
+        $resumenTopProcedencia = $this->resumenCortoCategoria($procedenciaItems);
+        $resumenTopVisitas = $this->resumenCortoCategoria($visitasItems);
+
+        $puntosComposicion = $this->construirPuntosCategoria(
+            $composicionItems,
+            'Total con composición registrada: ' . $this->sumaItems($composicionItems) . '.'
+        );
+        $puntosPuntualidad = $this->construirPuntosCategoria(
+            $puntualidadItems,
+            $this->fraseMayorCategoria($puntualidadItems, 'La mayoría de las llegadas se registró en %s.')
+        );
+        $puntosPermanencia = $this->construirPuntosCategoria(
+            $permanenciaItems,
+            'Total con permanencia registrada: ' . $this->sumaItems($permanenciaItems) . '.'
+        );
+        $puntosProcedencia = $this->construirPuntosCategoria(
+            $procedenciaItems,
+            $this->fraseMayorCategoria($procedenciaItems, 'La procedencia con más asistentes fue %s.')
+        );
+        $puntosVisitas = $this->construirPuntosVisitas($visitasTotal, $visitasItems, $topNombresTexto);
 
         return [
             'version' => 'v1',
@@ -467,91 +521,94 @@ final class PresentacionService
             'secciones' => [
                 [
                     'id' => 'resumen_ejecutivo',
-                    'titulo' => 'Resumen Ejecutivo',
+                    'titulo' => 'Resumen ejecutivo',
                     'resumen' => sprintf(
-                        'En %s %d se registraron %d cultos con %d asistentes en total y un promedio de %s por registro.',
+                        'En %s %d se registraron %d cultos%s con %d asistentes en total.',
                         $mesEtiqueta,
                         $anio,
                         $totalRegistros,
-                        $totalAsistentes,
-                        $this->fmtDec($promedio)
+                        $ambitoCulto,
+                        $totalAsistentes
                     ),
                     'puntos' => [
-                        sprintf('Cobertura del periodo: %d registros procesados.', $totalRegistros),
-                        sprintf('Rango de asistencia por culto: minimo %d y maximo %d.', $minimo, $maximo),
-                        sprintf('Ambito aplicado: culto %s.', $cultoCodigo)
+                        sprintf('Promedio por registro: %s asistentes.', $this->fmtDec($promedio)),
+                        sprintf('Registro más alto: %d asistentes.', $maximo),
+                        sprintf('Registro más bajo: %d asistentes.', $minimo)
                     ]
                 ],
                 [
-                    'id' => 'kpis_clave',
-                    'titulo' => 'Indicadores Clave',
-                    'resumen' => 'Los indicadores principales consolidan asistencia total, promedio operativo, concentracion de visitas y metricas dinamicas del periodo.',
+                    'id' => 'datos_clave',
+                    'titulo' => 'Datos clave',
+                    'resumen' => 'Estos son los datos principales del período para una revisión rápida.',
                     'puntos' => [
-                        sprintf('Asistencia total mensual: %d personas.', $totalAsistentes),
+                        sprintf('Total de registros: %d.', $totalRegistros),
+                        sprintf('Total de asistentes: %d.', $totalAsistentes),
                         sprintf('Promedio por registro: %s asistentes.', $this->fmtDec($promedio)),
-                        sprintf('Visitas registradas: %d personas.', $visitasTotal),
-                        sprintf('Metricas dinamicas destacadas: %s.', $topMetricasDinamicas)
+                        $visitasTotal > 0
+                            ? sprintf('Total de visitas registradas: %d.', $visitasTotal)
+                            : 'No se registraron visitas en este período.'
                     ]
                 ],
                 [
                     'id' => 'tendencias',
                     'titulo' => 'Tendencias',
-                    'resumen' => sprintf(
-                        'La serie de asistencia por fecha muestra %s con variacion acumulada de %s%% entre inicio y cierre del periodo.',
-                        $direccionTendencia,
-                        $this->fmtDec($variacionPct)
-                    ),
+                    'resumen' => $hayComparacion
+                        ? sprintf(
+                            'La asistencia mostró %s entre el primer y el último registro del período.',
+                            $direccionTendencia === 'crecimiento'
+                                ? 'un aumento'
+                                : ($direccionTendencia === 'descenso' ? 'una disminución' : 'estabilidad')
+                        )
+                        : 'Solo hay un registro en el período, por lo que no hay una tendencia para comparar.',
                     'puntos' => [
-                        sprintf('Primer registro del periodo: %d asistentes.', $primer),
-                        sprintf('Ultimo registro del periodo: %d asistentes.', $ultimo),
-                        sprintf('Variacion absoluta del periodo: %+d asistentes.', $variacionAbs)
+                        sprintf('Primer registro: %d asistentes.', $primer),
+                        sprintf('Último registro: %d asistentes.', $ultimo),
+                        $hayComparacion
+                            ? sprintf('Cambio del período: %+d asistentes (%s%%).', $variacionAbs, $this->fmtDec($variacionPct))
+                            : 'Se necesita más de un registro para calcular una variación.'
                     ]
                 ],
                 [
                     'id' => 'composicion',
-                    'titulo' => 'Composicion',
-                    'resumen' => 'La composicion etaria mensual se distribuye entre ninos y jovenes segun los conteos reportados en cada registro.',
-                    'puntos' => [
-                        sprintf('Ninos: %d (%s%% del total etario).', $ninosCant, $this->fmtDec($ninosPct)),
-                        sprintf('Jovenes: %d (%s%% del total etario).', $jovenesCant, $this->fmtDec($jovenesPct)),
-                        sprintf('Diferencia de volumen: %d personas.', abs($ninosCant - $jovenesCant))
-                    ]
+                    'titulo' => 'Composición',
+                    'resumen' => $resumenTopComposicion !== ''
+                        ? sprintf('La composición registrada se concentró principalmente en %s.', $resumenTopComposicion)
+                        : 'No hubo datos de composición registrados en este período.',
+                    'puntos' => $puntosComposicion
                 ],
                 [
                     'id' => 'puntualidad',
                     'titulo' => 'Puntualidad',
-                    'resumen' => 'La puntualidad mensual contrasta llegadas antes y despues de la hora para orientar acciones operativas de inicio.',
-                    'puntos' => [
-                        sprintf('Llegadas antes de hora: %d (%s%%).', $antesCant, $this->fmtDec($antesPct)),
-                        sprintf('Llegadas despues de hora: %d (%s%%).', $despuesCant, $this->fmtDec($despuesPct)),
-                        sprintf('Brecha de puntualidad: %+d personas.', $antesCant - $despuesCant)
-                    ]
+                    'resumen' => $resumenTopPuntualidad !== ''
+                        ? sprintf('Así se distribuyeron las llegadas durante el período: %s.', $resumenTopPuntualidad)
+                        : 'No hubo datos de puntualidad registrados en este período.',
+                    'puntos' => $puntosPuntualidad
+                ],
+                [
+                    'id' => 'permanencia',
+                    'titulo' => 'Permanencia',
+                    'resumen' => $resumenTopPermanencia !== ''
+                        ? sprintf('La permanencia registrada se distribuyó principalmente en %s.', $resumenTopPermanencia)
+                        : 'No hubo datos de permanencia registrados en este período.',
+                    'puntos' => $puntosPermanencia
                 ],
                 [
                     'id' => 'procedencia',
                     'titulo' => 'Procedencia',
-                    'resumen' => 'La procedencia de asistentes se distribuye entre Barrio y Guayabo con participaciones relativas del periodo.',
-                    'puntos' => [
-                        sprintf('Barrio: %d (%s%% de procedencia).', $barrioCant, $this->fmtDec($barrioPct)),
-                        sprintf('Guayabo: %d (%s%% de procedencia).', $guayaboCant, $this->fmtDec($guayaboPct)),
-                        sprintf('Diferencia entre zonas: %+d personas.', $barrioCant - $guayaboCant)
-                    ]
+                    'resumen' => $resumenTopProcedencia !== ''
+                        ? sprintf('Las procedencias con más asistentes fueron %s.', $resumenTopProcedencia)
+                        : 'No hubo procedencias registradas en este período.',
+                    'puntos' => $puntosProcedencia
                 ],
                 [
                     'id' => 'visitas',
                     'titulo' => 'Visitas',
-                    'resumen' => 'El componente de visitas permite monitorear captacion mensual y su distribucion geografica para seguimiento pastoral.',
-                    'puntos' => [
-                        sprintf('Total de visitas del periodo: %d.', $visitasTotal),
-                        sprintf('Visitas de Barrio: %d (%s%%) y Guayabo: %d (%s%%).', $visitasBarrio, $this->fmtDec($visitasBarrioPct), $visitasGuayabo, $this->fmtDec($visitasGuayaboPct)),
-                        sprintf('Nombres mas frecuentes: %s.', $topNombresTexto)
-                    ]
-                ],
-                [
-                    'id' => 'conclusiones_acciones',
-                    'titulo' => 'Conclusiones y Acciones',
-                    'resumen' => 'Las acciones sugeridas se generan por reglas fijas de negocio para mantener consistencia entre periodos.',
-                    'puntos' => $acciones
+                    'resumen' => $visitasTotal > 0
+                        ? ($resumenTopVisitas !== ''
+                            ? sprintf('Las visitas del período se concentraron principalmente en %s.', $resumenTopVisitas)
+                            : sprintf('Se registraron %d visitas durante el período.', $visitasTotal))
+                        : 'No se registraron visitas en este período.',
+                    'puntos' => $puntosVisitas
                 ]
             ]
         ];
@@ -596,42 +653,12 @@ final class PresentacionService
     }
 
     /**
-     * @param array<string, mixed> $metricas
-     * @return array<int, string>
-     */
-    private function construirAccionesDeterministicas(array $metricas, float $variacionPct): array
-    {
-        $puntualidad = is_array($metricas['puntualidad'] ?? null) ? $metricas['puntualidad'] : [];
-        $visitas = is_array($metricas['visitas'] ?? null) ? $metricas['visitas'] : [];
-
-        $antes = (int) ($puntualidad['antes']['cantidad'] ?? 0);
-        $despues = (int) ($puntualidad['despues']['cantidad'] ?? 0);
-        $visitasTotales = (int) ($visitas['total_visitas'] ?? 0);
-
-        $accionTendencia = $variacionPct < -5
-            ? 'Implementar un plan de retencion semanal para recuperar la asistencia del siguiente mes.'
-            : ($variacionPct > 5
-                ? 'Consolidar practicas actuales de convocatoria para sostener el crecimiento observado.'
-                : 'Mantener monitoreo quincenal para detectar cambios tempranos en la asistencia.');
-
-        $accionPuntualidad = $despues > $antes
-            ? 'Reforzar recordatorios previos al culto y ajustar tiempos de inicio para mejorar puntualidad.'
-            : 'Mantener protocolo de recepcion temprana y seguimiento a grupos con menor puntualidad.';
-
-        $accionVisitas = $visitasTotales > 0
-            ? 'Programar seguimiento pastoral a visitas registradas en un plazo maximo de siete dias.'
-            : 'Fortalecer estrategias de invitacion comunitaria para incrementar visitas en el proximo periodo.';
-
-        return [$accionTendencia, $accionPuntualidad, $accionVisitas];
-    }
-
-    /**
      * @param array<int, array<string, mixed>> $topNombres
      */
     private function formatearTopNombres(array $topNombres): string
     {
         if ($topNombres === []) {
-            return 'sin registros relevantes';
+            return 'sin nombres registrados';
         }
 
         $segmentos = [];
@@ -645,41 +672,331 @@ final class PresentacionService
         }
 
         if ($segmentos === []) {
-            return 'sin registros relevantes';
+            return 'sin nombres registrados';
         }
 
         return implode(', ', $segmentos);
     }
 
     /**
-     * @param array<int, array<string, mixed>> $metricasDinamicas
+     * @return array{0: array<string, string>, 1: array<string, string>}
      */
-    private function formatearTopMetricasDinamicas(array $metricasDinamicas): string
+    private function obtenerContextoMetricas(int $organizacionId): array
     {
-        if ($metricasDinamicas === []) {
-            return 'sin metricas numericas disponibles';
-        }
+        $metricas = $this->setupDAO->getMetricas($organizacionId);
+        $etiquetas = [];
+        $categorias = [];
 
-        usort($metricasDinamicas, static function (array $a, array $b): int {
-            return (float) ($b['suma'] ?? 0) <=> (float) ($a['suma'] ?? 0);
-        });
-
-        $segmentos = [];
-        foreach (array_slice($metricasDinamicas, 0, 3) as $metrica) {
-            $clave = trim((string) ($metrica['clave'] ?? ''));
-            $suma = (float) ($metrica['suma'] ?? 0);
+        foreach ($metricas as $metrica) {
+            $clave = strtolower(trim((string) ($metrica['clave'] ?? '')));
             if ($clave === '') {
                 continue;
             }
 
-            $segmentos[] = sprintf('%s=%s', $clave, $this->fmtDec($suma));
+            $etiquetas[$clave] = trim((string) ($metrica['etiqueta'] ?? '')) !== ''
+                ? trim((string) $metrica['etiqueta'])
+                : $this->humanizarClavePresentacion($clave);
+
+            $categoria = strtolower(trim((string) ($metrica['categoria'] ?? '')));
+            $categorias[$clave] = $categoria !== ''
+                ? $categoria
+                : $this->inferirCategoriaPresentacion($clave);
         }
 
-        if ($segmentos === []) {
-            return 'sin metricas numericas disponibles';
+        return [$etiquetas, $categorias];
+    }
+
+    private function inferirCategoriaPresentacion(string $clave): string
+    {
+        if ($clave === 'llegaron_antes_hora' || $clave === 'llegaron_despues_hora') {
+            return 'informacion_culto';
+        }
+        if ($clave === 'ninos' || $clave === 'jovenes') {
+            return 'composicion_asistentes';
+        }
+        if ($clave === 'total_asistentes') {
+            return 'total_asistentes';
+        }
+        if (str_starts_with($clave, 'proc_')) {
+            return 'procedencia';
+        }
+        if (str_starts_with($clave, 'visitas_') || str_starts_with($clave, 'nombres_visitas_')) {
+            return 'visitas';
+        }
+        if ($clave === 'retiros_antes_terminar' || $clave === 'se_quedaron_todo') {
+            return 'permanencia';
+        }
+        if ($clave === 'observaciones') {
+            return 'observaciones';
         }
 
-        return implode(', ', $segmentos);
+        return 'adicionales';
+    }
+
+    private function humanizarClavePresentacion(string $clave): string
+    {
+        $texto = strtolower(trim($clave));
+        if ($texto === '') {
+            return '';
+        }
+
+        $texto = str_replace(
+            ['ninos', 'jovenes', 'despues', 'maximo', 'minimo'],
+            ['niños', 'jóvenes', 'después', 'máximo', 'mínimo'],
+            $texto
+        );
+        $texto = str_replace(['_', '-'], ' ', $texto);
+
+        return ucfirst(trim($texto));
+    }
+
+    /**
+     * @param mixed $valor
+     */
+    private function resolverNumeroMetrica($valor): ?float
+    {
+        if (is_int($valor) || is_float($valor)) {
+            return (float) $valor;
+        }
+
+        if (is_string($valor) && preg_match('/^-?\d+(\.\d+)?$/', trim($valor)) === 1) {
+            return (float) $valor;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, float> $acumulador
+     */
+    private function acumularTotalCategoria(array &$acumulador, string $etiqueta, float $valor): void
+    {
+        $etiquetaNormalizada = trim($etiqueta);
+        if ($etiquetaNormalizada === '') {
+            return;
+        }
+
+        if (!isset($acumulador[$etiquetaNormalizada])) {
+            $acumulador[$etiquetaNormalizada] = 0.0;
+        }
+
+        $acumulador[$etiquetaNormalizada] += $valor;
+    }
+
+    /**
+     * @param array<string, float> $acumulados
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapearItemsCategoria(array $acumulados, int $base): array
+    {
+        if ($acumulados === []) {
+            return [];
+        }
+
+        arsort($acumulados);
+        $items = [];
+        foreach ($acumulados as $etiqueta => $cantidad) {
+            $cantidadEntera = (int) round($cantidad);
+            if ($cantidadEntera <= 0) {
+                continue;
+            }
+
+            $items[] = [
+                'etiqueta' => $etiqueta,
+                'cantidad' => $cantidadEntera,
+                'porcentaje' => $this->porcentaje($cantidadEntera, $base)
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function resumenCortoCategoria(array $items, int $limite = 2): string
+    {
+        if ($items === []) {
+            return '';
+        }
+
+        $partes = [];
+        foreach (array_slice($items, 0, $limite) as $item) {
+            $etiqueta = trim((string) ($item['etiqueta'] ?? ''));
+            $cantidad = (int) ($item['cantidad'] ?? 0);
+            if ($etiqueta === '') {
+                continue;
+            }
+            $partes[] = sprintf('%s (%d)', $etiqueta, $cantidad);
+        }
+
+        return implode(', ', $partes);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array<int, string>
+     */
+    private function construirPuntosCategoria(array $items, string $extra = ''): array
+    {
+        $puntos = [];
+
+        foreach (array_slice($items, 0, 3) as $item) {
+            $etiqueta = trim((string) ($item['etiqueta'] ?? ''));
+            $cantidad = (int) ($item['cantidad'] ?? 0);
+            $porcentaje = (float) ($item['porcentaje'] ?? 0);
+            if ($etiqueta === '') {
+                continue;
+            }
+            $puntos[] = sprintf('%s: %d (%s%%).', $etiqueta, $cantidad, $this->fmtDec($porcentaje));
+        }
+
+        if ($extra !== '') {
+            $puntos[] = $extra;
+        }
+
+        if ($puntos === []) {
+            return [
+                'No hubo datos registrados en este período.',
+                'No se encontraron cantidades para mostrar.',
+                'Puede revisar otros filtros para ver más información.'
+            ];
+        }
+
+        while (count($puntos) < 3) {
+            $puntos[] = $puntos[count($puntos) - 1];
+        }
+
+        return array_slice($puntos, 0, 4);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function fraseMayorCategoria(array $items, string $plantilla): string
+    {
+        if ($items === []) {
+            return '';
+        }
+
+        $etiqueta = trim((string) ($items[0]['etiqueta'] ?? ''));
+        if ($etiqueta === '') {
+            return '';
+        }
+
+        return sprintf($plantilla, $etiqueta);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function sumaItems(array $items): int
+    {
+        $total = 0;
+        foreach ($items as $item) {
+            $total += (int) ($item['cantidad'] ?? 0);
+        }
+
+        return $total;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $visitasItems
+     * @return array<int, string>
+     */
+    private function construirPuntosVisitas(int $visitasTotal, array $visitasItems, string $topNombresTexto): array
+    {
+        $puntos = [
+            $visitasTotal > 0
+                ? sprintf('Total de visitas registradas: %d.', $visitasTotal)
+                : 'No se registraron visitas en este período.'
+        ];
+
+        if ($visitasItems !== []) {
+            foreach (array_slice($visitasItems, 0, 2) as $item) {
+                $etiqueta = trim((string) ($item['etiqueta'] ?? ''));
+                $cantidad = (int) ($item['cantidad'] ?? 0);
+                $porcentaje = (float) ($item['porcentaje'] ?? 0);
+                if ($etiqueta === '') {
+                    continue;
+                }
+                $puntos[] = sprintf('%s: %d (%s%% de las visitas).', $etiqueta, $cantidad, $this->fmtDec($porcentaje));
+            }
+        } else {
+            $puntos[] = 'No hubo zonas con visitas registradas.';
+        }
+
+        $puntos[] = $topNombresTexto !== 'sin nombres registrados'
+            ? sprintf('Nombres más repetidos: %s.', $topNombresTexto)
+            : 'No se registraron nombres de visitas.';
+
+        return array_slice($puntos, 0, 4);
+    }
+
+    /**
+     * @param array<string, mixed> $filtros
+     * @return array<int, array<string, mixed>>
+     */
+    private function listarRegistrosPresentacion(array $filtros, ?string $creadoHasta = null): array
+    {
+        if ($creadoHasta !== null && trim($creadoHasta) !== '') {
+            $filtros['creado_hasta'] = trim($creadoHasta);
+        }
+
+        return $this->asistenciaService->listar($filtros);
+    }
+
+    private function normalizarPresentacionDTO(PresentacionDTO $dto): PresentacionDTO
+    {
+        if (!$this->esPresentacionLegada($dto->presentacion)) {
+            return $dto;
+        }
+
+        try {
+            $registros = $this->listarRegistrosPresentacion(
+                is_array($dto->filtros) ? $dto->filtros : [],
+                $dto->creadoEn !== '' ? $dto->creadoEn : null
+            );
+
+            if ($registros === []) {
+                return $dto;
+            }
+
+            $dto->metricas = $this->construirMetricas($registros, $dto->filtros);
+            $dto->presentacion = $this->construirPresentacionDeterministica($dto->metricas);
+            $this->validarPresentacion($dto->presentacion);
+        } catch (Throwable $e) {
+            return $dto;
+        }
+
+        return $dto;
+    }
+
+    /**
+     * @param array<string, mixed> $presentacion
+     */
+    private function esPresentacionLegada(array $presentacion): bool
+    {
+        $secciones = $presentacion['secciones'] ?? null;
+        if (!is_array($secciones) || count($secciones) !== count(self::SECTION_IDS)) {
+            return true;
+        }
+
+        foreach (self::SECTION_IDS as $index => $idEsperado) {
+            $seccion = $secciones[$index] ?? null;
+            if (!is_array($seccion) || ($seccion['id'] ?? '') !== $idEsperado) {
+                return true;
+            }
+        }
+
+        $textoPlano = json_encode($presentacion, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($textoPlano)) {
+            return true;
+        }
+
+        return str_contains($textoPlano, 'Métricas dinámicas destacadas')
+            || str_contains($textoPlano, 'Conclusiones y Acciones')
+            || str_contains($textoPlano, 'El componente de visitas permite monitorear');
     }
 
     /**
@@ -766,7 +1083,9 @@ final class PresentacionService
 
     private function fmtDec(float $valor): string
     {
-        return number_format($valor, 2, '.', '');
+        $texto = number_format($valor, 2, '.', '');
+        $texto = rtrim(rtrim($texto, '0'), '.');
+        return $texto === '-0' ? '0' : $texto;
     }
 
     private function nombreMes(int $mes): string

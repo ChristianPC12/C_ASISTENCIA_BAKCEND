@@ -58,3 +58,13 @@ Backend tenant-aware nacional para multiples organizaciones (IGLESIA/GRUPO), con
 
 - backend listo tecnicamente para preproduccion nacional.
 - produccion final requiere validacion operativa de ventana y backup real.
+## 7) Pulido de presentaciones determinísticas (2026-04-01)
+
+- motor determinístico simplificado a lenguaje no técnico para usuario final.
+- reconstrucción de presentaciones legadas en lectura con corte por `creado_en`.
+- agregación completa de categorías dinámicas para evitar omisiones en procedencias, visitas y permanencia.
+
+## Seguimiento 2026-04-02
+- Hecho: mantenimiento de cuentas SUPERADMIN con endpoints propios y expiración efectiva de contraseña a 30 días.
+- Hecho: alta de campos globales sin código manual desde UI (código autogenerado en servicio).
+- Siguiente mejora opcional: separar `SuperadminPage` y `Sidebar` en subcomponentes para bajar complejidad estructural sin cambiar UX.

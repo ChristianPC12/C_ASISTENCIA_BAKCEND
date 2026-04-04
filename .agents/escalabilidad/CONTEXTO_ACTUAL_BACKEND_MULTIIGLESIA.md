@@ -86,3 +86,103 @@
 
 - GO tecnico para preproduccion.
 - Produccion final condicionada a aprobacion operativa del owner.
+## Nota post-B7: presentaciones determinísticas (2026-04-01)
+
+- `PresentacionService` deja de exponer narrativa técnica heredada (`kpis_clave`, `Conclusiones y Acciones`, métricas dinámicas destacadas).
+- Las presentaciones legadas se reconstruyen al leerlas con los filtros originales y corte temporal por `creado_en`, para respetar el snapshot histórico sin mantener texto o cálculos incompletos.
+- La agregación de presentación ahora incluye categorías dinámicas completas (`permanencia`, procedencias y visitas por zona) y evita duplicar nombres de visitas.
+
+## Superadmin: mantenimiento de cuentas globales (2026-04-02)
+
+- `PASSWORD_EXPIRY_DAYS` ya gobierna también las cuentas SUPERADMIN; la expiración efectiva se mantiene en 30 días.
+- Nuevos endpoints v2 activos:
+  - `GET /v2/superadmin/usuarios-superadmin`
+  - `POST /v2/superadmin/usuarios-superadmin`
+  - `PUT /v2/superadmin/usuarios-superadmin/{id}`
+  - `PUT /v2/superadmin/usuarios-superadmin/{id}/password`
+- `UsuarioDAO` ya soporta listado/alta/edición de cuentas SUPERADMIN globales.
+- Al cambiar la contraseña de un SUPERADMIN se revocan sus tokens activos.
+- `SuperadminCatalogoService::crearCampo` ya puede generar el código automáticamente cuando la UI solo envía el nombre.
+## Modulos misioneros: base compartida + Campanas (2026-04-02)
+
+- Se agrego documento de integracion tecnica `modulos_misioneros_integracion.md` y dos paquetes SQL:
+  - `migracion_02042026_modulos_ministerio_base.sql`
+  - `migracion_02042026_modulos_ministerio_operativos.sql`
+- La base nueva define catálogos/origenes compartidos, `contactos_misioneros`, `seguimiento_tareas` y `auditoria_eventos` para reutilizacion futura entre `Campanas`, `Estudios Biblicos`, `PC` y `Juntas`.
+- Quedo operativo el backend base de `ContactoMisionero` (DAO, service, validator, controller, routes) para deduplicacion y reutilizacion cross-modulo.
+- Quedo operativo el primer slice de `Campanas`:
+  - CRUD tenant-aware
+  - dashboard
+  - sesiones
+  - asistentes
+  - asistencia por noche con upsert
+  - decisiones
+  - auditoria de eventos relevantes
+- `Campanas` ya resuelve/crea `contactos_misioneros` para preparar la conversion futura `Campana -> Interesado -> Estudio Biblico`.
+## Modulos misioneros: Estudios Biblicos (2026-04-03)
+
+- Quedo operativo el backend tenant-aware de `Estudios Biblicos` sobre la base compartida de `contactos_misioneros`, `seguimiento_tareas` y `auditoria_eventos`.
+- Endpoints activos:
+  - `GET /estudios-biblicos`
+  - `GET /estudios-biblicos/dashboard`
+  - `GET /estudios-biblicos/{id}`
+  - `POST /estudios-biblicos`
+  - `PUT /estudios-biblicos/{id}`
+  - `DELETE /estudios-biblicos/{id}`
+  - `POST /estudios-biblicos/{id}/sesiones`
+  - `POST /estudios-biblicos/{id}/decisiones`
+  - `POST /estudios-biblicos/{id}/asignaciones`
+- El service ya resuelve/crea contactos para la persona e instructores, evitando duplicacion basica y dejando trazabilidad cross-modulo.
+- `EstudioBiblicoService` registra sesiones, decisiones y asignaciones con auditoria; si una decision requiere seguimiento, crea tarea en `seguimiento_tareas`.
+- La reasignacion cierra asignaciones vigentes previas y abre una nueva, conservando historial.
+- El modulo queda listo para la integracion futura `Campana -> Interesado -> Estudio Biblico` y `PC -> Estudio Biblico` sin crear otra entidad de persona.
+## Modulos misioneros: Pequenas Congregaciones (PC) (2026-04-03)
+
+- Quedo operativo el backend tenant-aware de `PC` sobre la base compartida de `contactos_misioneros`, `seguimiento_tareas` y `auditoria_eventos`.
+- Endpoints activos:
+  - `GET /pequenas-congregaciones`
+  - `GET /pequenas-congregaciones/dashboard`
+  - `GET /pequenas-congregaciones/{id}`
+  - `POST /pequenas-congregaciones`
+  - `PUT /pequenas-congregaciones/{id}`
+  - `DELETE /pequenas-congregaciones/{id}`
+  - `POST /pequenas-congregaciones/{id}/participantes`
+  - `PUT /pequenas-congregaciones/participantes/{id}`
+  - `POST /pequenas-congregaciones/{id}/reuniones`
+  - `PUT /pequenas-congregaciones/reuniones/{id}`
+  - `POST /pequenas-congregaciones/reuniones/{id}/asistencia`
+  - `POST /pequenas-congregaciones/{id}/resultados`
+  - `PUT /pequenas-congregaciones/resultados/{id}`
+  - `POST /pequenas-congregaciones/{id}/liderazgo`
+  - `PUT /pequenas-congregaciones/liderazgo/{id}`
+- `PcService` reutiliza `contactos_misioneros` para lideres, anfitriones, participantes y responsables de seguimiento, evitando crear otra entidad de persona.
+- La auditoria registra altas, cambios, cierres, resultados y liderazgo historico del modulo.
+- Los resultados ministeriales ya pueden impactar el estado de la PC (`MULTIPLICADA`, `CERRADA`) sin perder historial.## Modulos misioneros y administrativos: Juntas de Iglesia (2026-04-03)
+
+- Quedo operativo el backend tenant-aware de `Juntas de Iglesia` sobre las tablas `juntas_iglesia`, `junta_puntos_agenda` y `junta_votaciones` ya definidas en la migracion operativa.
+- Endpoints activos:
+  - `GET /juntas-iglesia`
+  - `GET /juntas-iglesia/dashboard`
+  - `GET /juntas-iglesia/pendientes`
+  - `GET /juntas-iglesia/{id}`
+  - `POST /juntas-iglesia`
+  - `PUT /juntas-iglesia/{id}`
+  - `DELETE /juntas-iglesia/{id}`
+  - `POST /juntas-iglesia/{id}/puntos`
+  - `PUT /juntas-iglesia/puntos/{id}`
+  - `POST /juntas-iglesia/puntos/{id}/votaciones`
+  - `PUT /juntas-iglesia/votaciones/{id}`
+- `JuntaService` ya entrega detalle enriquecido con puntos, votaciones, resumen, timeline y acta resumida.
+- El modulo ya soporta busqueda textual, filtros por estado/tipo/departamento/responsable y calculo de pendientes/vencidos.
+- La auditoria registra creacion, actualizacion, archivo, puntos y votaciones del modulo.
+## 2026-04-03 - Conversiones cruzadas listas
+- Campanas puede convertir asistentes no miembro a estudio biblico y deja decision automatica ACEPTO_ESTUDIO_BIBLICO.
+- PC puede convertir participantes no miembro a estudio biblico y deja resultado ESTUDIO_BIBLICO_GENERADO.
+- Ambas rutas usan contactos_misioneros compartidos, auditoria_eventos y aislamiento por organizacion_id.
+- Smoke test real validado en org 61 con endpoints HTTP protegidos.
+
+
+## 2026-04-04 - Estado listo para continuidad por otros chats
+- La base tenant-aware de los 4 modulos nuevos ya esta lista para que otro chat continue desde agents sin re-descubrir arquitectura.
+- Los siguientes pasos recomendados ya no son de estructura base, sino de refinamiento: reportes, exportaciones, endurecimiento de validaciones y smoke tests funcionales mas amplios.
+

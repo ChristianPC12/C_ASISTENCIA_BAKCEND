@@ -191,6 +191,71 @@ final class UsuarioDAO
     }
 
     /**
+     * Lista superadministradores globales.
+     *
+     * @return UsuarioDTO[]
+     */
+    public function findAllSuperadmins(): array
+    {
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
+                       o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
+                       u.creado_en, u.actualizado_en
+                FROM usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                LEFT JOIN organizaciones o ON o.id = u.organizacion_id
+                LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
+                WHERE r.nombre = 'SUPERADMIN'
+                ORDER BY u.activo DESC, u.nombre_completo ASC, u.id ASC";
+
+        $stmt = $this->pdo->query($sql);
+        $usuarios = [];
+
+        while ($row = $stmt->fetch()) {
+            $usuarios[] = UsuarioMapper::fromRow($row);
+        }
+
+        return $usuarios;
+    }
+
+    /**
+     * Busca un superadministrador por ID.
+     *
+     * @param int $id
+     * @return UsuarioDTO|null
+     */
+    public function findSuperadminById(int $id): ?UsuarioDTO
+    {
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
+                       o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
+                       u.creado_en, u.actualizado_en
+                FROM usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                LEFT JOIN organizaciones o ON o.id = u.organizacion_id
+                LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
+                WHERE u.id = :id
+                  AND r.nombre = 'SUPERADMIN'
+                LIMIT 1";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+
+        if ($row === false) {
+            return null;
+        }
+
+        return UsuarioMapper::fromRow($row);
+    }
+
+    /**
      * Inserta un nuevo usuario.
      *
      * @param string $nombreCompleto Nombre completo.
@@ -258,6 +323,34 @@ final class UsuarioDAO
     }
 
     /**
+     * Actualiza datos basicos de un SUPERADMIN.
+     *
+     * @param int    $id
+     * @param string $nombreCompleto
+     * @param string $usuario
+     * @param bool   $activo
+     * @return bool
+     */
+    public function updateSuperadmin(int $id, string $nombreCompleto, string $usuario, bool $activo): bool
+    {
+        $sql = "UPDATE usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                SET u.nombre_completo = :nombre_completo,
+                    u.usuario = :usuario,
+                    u.activo = :activo
+                WHERE u.id = :id
+                  AND r.nombre = 'SUPERADMIN'";
+
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([
+            ':nombre_completo' => $nombreCompleto,
+            ':usuario' => $usuario,
+            ':activo' => $activo ? 1 : 0,
+            ':id' => $id
+        ]);
+    }
+
+    /**
      * Actualiza el password de un usuario.
      *
      * @param int    $id           ID del usuario.
@@ -314,6 +407,32 @@ final class UsuarioDAO
         $stmt->execute($params);
 
         return (int) $stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Cuenta SUPERADMIN activos.
+     *
+     * @param int|null $excludeId
+     * @return int
+     */
+    public function countActivosSuperadmin(?int $excludeId = null): int
+    {
+        $sql = "SELECT COUNT(u.id)
+                FROM usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                WHERE r.nombre = 'SUPERADMIN'
+                  AND u.activo = 1";
+
+        $params = [];
+        if ($excludeId !== null) {
+            $sql .= " AND u.id <> :exclude_id";
+            $params[':exclude_id'] = $excludeId;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
     }
 
     /**
@@ -622,6 +741,53 @@ final class UsuarioDAO
             ':password_expira_en' => $passwordExpiraEn,
             ':rol_id' => $rolId,
             ':organizacion_id' => $organizacionId
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Inserta un usuario SUPERADMIN global.
+     *
+     * @param string $nombreCompleto
+     * @param string $usuario
+     * @param string $passwordHash
+     * @param int    $rolId
+     * @return int
+     */
+    public function insertSuperadmin(
+        string $nombreCompleto,
+        string $usuario,
+        string $passwordHash,
+        int $rolId
+    ): int {
+        $sql = "INSERT INTO usuarios (
+                    nombre_completo,
+                    usuario,
+                    password_hash,
+                    password_actualizada_en,
+                    password_expira_en,
+                    rol_id,
+                    organizacion_id,
+                    activo
+                )
+                VALUES (
+                    :nombre_completo,
+                    :usuario,
+                    :password_hash,
+                    NOW(),
+                    DATE_ADD(NOW(), INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY),
+                    :rol_id,
+                    NULL,
+                    1
+                )";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':nombre_completo' => $nombreCompleto,
+            ':usuario' => $usuario,
+            ':password_hash' => $passwordHash,
+            ':rol_id' => $rolId
         ]);
 
         return (int) $this->pdo->lastInsertId();

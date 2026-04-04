@@ -20,7 +20,7 @@ final class SuperadminCatalogoValidator
     public static function validateCreateCampo(array $data): array
     {
         return [
-            'codigo' => self::validateCodigoCampo($data['codigo'] ?? null, true),
+            'codigo' => self::validateCodigoCampo($data['codigo'] ?? null, false),
             'nombre' => self::validateNombre($data['nombre'] ?? null),
             'activo' => self::validateActivo($data['activo'] ?? null, false)
         ];
