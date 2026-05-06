@@ -19,7 +19,9 @@ final class CampanaValidator
             'fecha_inicio' => $data['fecha_inicio'] ?? null,
             'fecha_fin' => $data['fecha_fin'] ?? null,
             'lugar' => $data['lugar'] ?? null,
+            'hora' => $data['hora'] ?? null,
             'predicador' => $data['predicador'] ?? null,
+            'responsable' => $data['responsable'] ?? null,
             'responsable_usuario_id' => $data['responsable_usuario_id'] ?? null,
             'descripcion' => $data['descripcion'] ?? null,
             'estado' => $data['estado'] ?? null,
@@ -52,6 +54,7 @@ final class CampanaValidator
         return [
             'nombre_completo' => $data['nombre_completo'] ?? null,
             'telefono' => $data['telefono'] ?? null,
+            'telefono_internacional' => $data['telefono_internacional'] ?? null,
             'correo' => $data['correo'] ?? null,
             'direccion' => $data['direccion'] ?? null,
             'barrio_comunidad' => $data['barrio_comunidad'] ?? null,

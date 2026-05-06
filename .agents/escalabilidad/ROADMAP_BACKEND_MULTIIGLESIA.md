@@ -1,8 +1,8 @@
 # Roadmap Backend Multiiglesia / Multigrupo (IASD CR)
 
 Fecha base: 2026-03-09  
-Ultima actualizacion: 2026-03-10  
-Estado global backend: B0..B7 cerradas
+Ultima actualizacion: 2026-05-06
+Estado global backend: B0..B7 cerradas; modulos misioneros en refinamiento
 
 ## 1) Objetivo tecnico
 
@@ -68,3 +68,15 @@ Backend tenant-aware nacional para multiples organizaciones (IGLESIA/GRUPO), con
 - Hecho: mantenimiento de cuentas SUPERADMIN con endpoints propios y expiración efectiva de contraseña a 30 días.
 - Hecho: alta de campos globales sin código manual desde UI (código autogenerado en servicio).
 - Siguiente mejora opcional: separar `SuperadminPage` y `Sidebar` en subcomponentes para bajar complejidad estructural sin cambiar UX.
+
+## Seguimiento 2026-05-06
+
+- `Campanas` queda estable como modulo misionero operativo y fuente compartida de visitas.
+- `Estudios Biblicos` queda como foco activo de refinamiento:
+  - rol `INSTRUCTOR_BIBLICO`;
+  - instructores como usuarios reales;
+  - multiples visitas e instructores por estudio;
+  - sesiones y justificaciones por periodo;
+  - validacion de visita con estudio activo duplicado;
+  - estados reducidos a `ASIGNADO`, `EN_PROCESO`, `PAUSADO`, `FINALIZADO`.
+- Siguiente mejora backend recomendada: smoke tests funcionales de `POST /estudios-biblicos/{id}/sesiones` y flujo de justificacion con multiples instructores.

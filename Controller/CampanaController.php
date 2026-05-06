@@ -141,6 +141,57 @@ final class CampanaController
         }
     }
 
+    public function listarVisitas(): void
+    {
+        try {
+            $filtros = [
+                'q' => isset($_GET['q']) ? trim((string) $_GET['q']) : '',
+                'estado_seguimiento' => isset($_GET['estado_seguimiento']) ? trim((string) $_GET['estado_seguimiento']) : '',
+                'clasificacion_etaria' => isset($_GET['clasificacion_etaria']) ? trim((string) $_GET['clasificacion_etaria']) : '',
+                'campana_id' => isset($_GET['campana_id']) ? trim((string) $_GET['campana_id']) : ''
+            ];
+            $items = $this->campanaService->listarVisitas($filtros);
+            JsonResponse::sendV2Success(200, 'Listado de visitas obtenido correctamente.', ['items' => $items]);
+        } catch (\Throwable $e) {
+            error_log('[CampanaController::listarVisitas] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function buscarVisitasSimilares(): void
+    {
+        try {
+            $nombre = isset($_GET['nombre']) ? trim((string) $_GET['nombre']) : '';
+            $excluirId = isset($_GET['excluir_id']) && $_GET['excluir_id'] !== '' ? (int) $_GET['excluir_id'] : null;
+            if ($nombre === '') {
+                JsonResponse::sendV2Success(200, 'Sin consulta.', ['items' => []]);
+                return;
+            }
+            $items = $this->campanaService->buscarVisitasSimilares($nombre, $excluirId);
+            JsonResponse::sendV2Success(200, 'B\u00fasqueda de similares completada.', ['items' => $items]);
+        } catch (\Throwable $e) {
+            error_log('[CampanaController::buscarVisitasSimilares] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function crearVisitaSuelta(): void
+    {
+        try {
+            $data = Sanitizer::getJsonBody();
+            $validated = CampanaValidator::validateAsistente($data);
+            $item = $this->campanaService->crearVisitaSuelta($validated, AuthContext::getUsuarioId(), AuthContext::getNombre());
+            JsonResponse::sendV2Success(201, 'Visita registrada correctamente.', ['item' => $item]);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (RuntimeException $e) {
+            JsonResponse::sendV2Error(409, 'CONFLICT_DUPLICATE', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[CampanaController::crearVisitaSuelta] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
     public function crearAsistente(int $campanaId): void
     {
         try {
@@ -179,6 +230,19 @@ final class CampanaController
         }
     }
 
+    public function eliminarAsistente(int $asistenteId): void
+    {
+        try {
+            $this->campanaService->eliminarAsistente($asistenteId, AuthContext::getUsuarioId(), AuthContext::getNombre());
+            JsonResponse::sendV2Success(200, 'Asistente eliminado correctamente.');
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[CampanaController::eliminarAsistente] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
     public function registrarAsistenciaSesion(int $sesionId): void
     {
         try {
@@ -213,6 +277,34 @@ final class CampanaController
             JsonResponse::sendV2Error(409, 'CONFLICT_DUPLICATE', $e->getMessage());
         } catch (\Throwable $e) {
             error_log('[CampanaController::crearDecision] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function eliminarDecision(int $decisionId): void
+    {
+        try {
+            $this->campanaService->eliminarDecision($decisionId, AuthContext::getUsuarioId(), AuthContext::getNombre());
+            JsonResponse::sendV2Success(200, 'Decision eliminada correctamente.');
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[CampanaController::eliminarDecision] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function entregarPremiosAsistente(int $asistenteId): void
+    {
+        try {
+            $this->campanaService->entregarPremiosAsistente($asistenteId, AuthContext::getUsuarioId(), AuthContext::getNombre());
+            JsonResponse::sendV2Success(200, 'Premios entregados correctamente.');
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[CampanaController::entregarPremiosAsistente] ' . $e->getMessage());
             JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
         }
     }

@@ -49,6 +49,19 @@ final class RoleMiddleware
     }
 
     /**
+     * Exige rol operativo para gestionar estudios biblicos.
+     *
+     * @return void
+     */
+    public static function requireEstudiosBiblicosGestion(): void
+    {
+        $rol = AuthContext::getRol();
+        if (!in_array($rol, ['ADMIN', 'SECRETARIO', 'MINISTERIO_PERSONAL'], true)) {
+            JsonResponse::sendV2Error(403, 'FORBIDDEN_ROLE', 'Acceso denegado para gestionar estudios biblicos.');
+        }
+    }
+
+    /**
      * Exige setup completo para usar modulos operativos.
      *
      * @return void

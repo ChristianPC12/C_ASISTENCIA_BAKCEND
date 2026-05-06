@@ -14,6 +14,7 @@ final class EstudioBiblicoValidator
     {
         return [
             'persona_nombre' => $data['persona_nombre'] ?? null,
+            'visita_asistente_id' => $data['visita_asistente_id'] ?? null,
             'telefono' => $data['telefono'] ?? null,
             'correo' => $data['correo'] ?? null,
             'direccion' => $data['direccion'] ?? null,
@@ -31,6 +32,8 @@ final class EstudioBiblicoValidator
             'leccion_actual' => $data['leccion_actual'] ?? null,
             'total_lecciones_completadas' => $data['total_lecciones_completadas'] ?? null,
             'fecha_inicio' => $data['fecha_inicio'] ?? null,
+            'frecuencia_periodo' => $data['frecuencia_periodo'] ?? null,
+            'frecuencia_cantidad' => $data['frecuencia_cantidad'] ?? null,
             'fecha_ultima_sesion' => $data['fecha_ultima_sesion'] ?? null,
             'proxima_sesion' => $data['proxima_sesion'] ?? null,
             'estado_general' => $data['estado_general'] ?? null,
@@ -53,6 +56,7 @@ final class EstudioBiblicoValidator
             'dudas_surgidas' => $data['dudas_surgidas'] ?? null,
             'asistencia' => $data['asistencia'] ?? null,
             'percepcion_avance' => $data['percepcion_avance'] ?? null,
+            'progreso_bautismo' => $data['progreso_bautismo'] ?? null,
             'proxima_accion' => $data['proxima_accion'] ?? null,
             'proxima_fecha_sugerida' => $data['proxima_fecha_sugerida'] ?? null,
             'responsable_usuario_id' => $data['responsable_usuario_id'] ?? null
@@ -109,6 +113,54 @@ final class EstudioBiblicoValidator
             'responsable_usuario_id' => $query['responsable_usuario_id'] ?? null,
             'fecha_desde' => isset($query['fecha_desde']) ? Sanitizer::cleanString((string) $query['fecha_desde']) : '',
             'fecha_hasta' => isset($query['fecha_hasta']) ? Sanitizer::cleanString((string) $query['fecha_hasta']) : ''
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public static function validateAsignarDesdeVisita(array $data): array
+    {
+        return [
+            'visita_id' => $data['visita_id'] ?? null,
+            'visita_ids' => $data['visita_ids'] ?? null,
+            'responsable_usuario_id' => $data['responsable_usuario_id'] ?? null,
+            'responsable_usuario_ids' => $data['responsable_usuario_ids'] ?? null,
+            'fecha_inicio' => $data['fecha_inicio'] ?? null,
+            'frecuencia_periodo' => $data['frecuencia_periodo'] ?? null,
+            'frecuencia_cantidad' => $data['frecuencia_cantidad'] ?? null,
+            'modalidad' => $data['modalidad'] ?? 'INDIVIDUAL',
+            'material_estudio' => $data['material_estudio'] ?? null,
+            'leccion_actual' => $data['leccion_actual'] ?? null,
+            'observaciones' => $data['observaciones'] ?? null
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public static function validateInstructor(array $data): array
+    {
+        return [
+            'nombre_completo' => $data['nombre_completo'] ?? null,
+            'usuario' => $data['usuario'] ?? null,
+            'password' => $data['password'] ?? null,
+            'cargo' => $data['cargo'] ?? null,
+            'activo' => $data['activo'] ?? true
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public static function validateEstado(array $data): array
+    {
+        return [
+            'estado_general' => $data['estado_general'] ?? null,
+            'motivo_cierre_pausa' => $data['motivo_cierre_pausa'] ?? null
         ];
     }
 }

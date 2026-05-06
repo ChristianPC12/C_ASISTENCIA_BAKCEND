@@ -158,3 +158,30 @@ C_ASISTENCIA_BAKCEND/
   por lo que el frontend debe ser simple y responsivo.
 - Si se necesitan mas modulos (reportes, miembros, diezmos, etc.), se deben agregar
   nuevas entidades siguiendo el mismo patron: DTO -> Mapper -> DAO -> Validator -> Service -> Controller -> Router.
+
+---
+
+## Actualizacion de continuidad (2026-05-06)
+
+Este documento nacio como contexto del sistema base de asistencia. El proyecto actual ya es multi-tenant y tiene modulos misioneros operativos. Para continuar, leer tambien:
+
+- `AGENTS.md`
+- `.agents/escalabilidad/CONTEXTO_ACTUAL_BACKEND_MULTIIGLESIA.md`
+- `Contexto_actual_bd.md`
+
+Roles vigentes adicionales:
+
+- `SUPERADMIN`: administra organizaciones globales.
+- `MINISTERIO_PERSONAL`: administra modulos misioneros, especialmente Estudios Biblicos.
+- `INSTRUCTOR_BIBLICO`: entra al sistema para registrar sesiones de estudios asignados.
+
+Modulos misioneros vigentes:
+
+- `Campanas`
+- `Estudios Biblicos`
+- `Pequenas Congregaciones`
+- `Juntas de Iglesia`
+
+Foco actual:
+
+- `Estudios Biblicos`, con instructores reales, asignacion multiple de visitas/instructores, registro de sesiones, justificaciones y validacion de periodos.

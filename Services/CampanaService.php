@@ -6,6 +6,13 @@ declare(strict_types=1);
  */
 final class CampanaService
 {
+    private const VISITA_CORREO_MAX = 70;
+    private const VISITA_PROCEDENCIA_MAX = 40;
+    private const VISITA_DIRECCION_MAX = 80;
+    private const VISITA_BARRIO_MAX = 45;
+    private const VISITA_OBSERVACIONES_MAX = 120;
+    private const VISITA_TELEFONO_MAX = 20;
+
     private CampanaDAO $campanaDAO;
     private ContactoMisioneroService $contactoService;
     private EstudioBiblicoService $estudioService;
@@ -56,7 +63,6 @@ final class CampanaService
         $base['decisiones'] = $this->campanaDAO->listDecisions($id, $organizacionId);
         $base['resumen'] = [
             'total_sesiones' => count($base['sesiones']),
-            'total_asistentes' => count($base['asistentes']),
             'total_decisiones' => count($base['decisiones']),
             'total_visitas' => count(array_filter($base['asistentes'], static fn(array $item): bool => in_array((string) ($item['tipo_asistente'] ?? ''), ['VISITA', 'INTERESADO'], true))),
             'total_miembros' => count(array_filter($base['asistentes'], static fn(array $item): bool => (string) ($item['tipo_asistente'] ?? '') === 'MIEMBRO'))
@@ -161,6 +167,39 @@ final class CampanaService
         return $sesion;
     }
 
+    /**
+     * @param array<string, mixed> $filtros
+     * @return array<int, array<string, mixed>>
+     */
+    public function listarVisitas(array $filtros): array
+    {
+        $organizacionId = AuthContext::getOrganizacionId();
+        return $this->campanaDAO->listAllAttendees($organizacionId, $filtros);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function buscarVisitasSimilares(string $nombre, ?int $excluirId = null): array
+    {
+        $organizacionId = AuthContext::getOrganizacionId();
+        return $this->campanaDAO->findSimilarAttendees($organizacionId, $nombre, $excluirId);
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    public function crearVisitaSuelta(array $data, int $usuarioId, string $actorNombre): array
+    {
+        $organizacionId = AuthContext::getOrganizacionId();
+        $contacto = $this->resolverContactoParaCampana($data, $usuarioId, $actorNombre);
+        $payload = $this->normalizarAsistente($data, $organizacionId, null, $usuarioId, $contacto);
+        $id = $this->campanaDAO->insertAttendee($payload);
+        $asistente = $this->campanaDAO->findAttendeeById($id, $organizacionId);
+        if ($asistente === null) {
+            throw new RuntimeException('No fue posible recuperar la visita creada.');
+        }
+
+        $this->auditoriaService->registrar('CAMPANAS', 'CAMPANA_ASISTENTE', $id, 'CREAR', 'Visita suelta creada (sin campana).', $organizacionId, $usuarioId, $actorNombre, null, $asistente, ['campana_id' => null]);
+        return $asistente;
+    }
+
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function crearAsistente(int $campanaId, array $data, int $usuarioId, string $actorNombre): array
     {
@@ -192,7 +231,8 @@ final class CampanaService
         }
 
         $contacto = $this->resolverContactoParaCampana($data, $usuarioId, $actorNombre, isset($existente['contacto_id']) ? (int) $existente['contacto_id'] : null);
-        $payload = $this->normalizarAsistente($data, $organizacionId, (int) $existente['campana_id'], $usuarioId, $contacto, $existente);
+        $campanaIdExistente = isset($existente['campana_id']) && $existente['campana_id'] !== null ? (int) $existente['campana_id'] : null;
+        $payload = $this->normalizarAsistente($data, $organizacionId, $campanaIdExistente, $usuarioId, $contacto, $existente);
         $this->campanaDAO->updateAttendee($asistenteId, $payload, $organizacionId);
         $asistente = $this->campanaDAO->findAttendeeById($asistenteId, $organizacionId);
         if ($asistente === null) {
@@ -201,6 +241,18 @@ final class CampanaService
 
         $this->auditoriaService->registrar('CAMPANAS', 'CAMPANA_ASISTENTE', $asistenteId, 'ACTUALIZAR', 'Asistente de campana actualizado.', $organizacionId, $usuarioId, $actorNombre, $existente, $asistente, ['campana_id' => (int) $existente['campana_id']]);
         return $asistente;
+    }
+
+    public function eliminarAsistente(int $asistenteId, int $usuarioId, string $actorNombre): void
+    {
+        $organizacionId = AuthContext::getOrganizacionId();
+        $existente = $this->campanaDAO->findAttendeeById($asistenteId, $organizacionId);
+        if ($existente === null) {
+            throw new OutOfBoundsException('Asistente no encontrado.');
+        }
+
+        $this->campanaDAO->softDeleteAttendee($asistenteId, $organizacionId, $usuarioId);
+        $this->auditoriaService->registrar('CAMPANAS', 'CAMPANA_ASISTENTE', $asistenteId, 'ARCHIVAR', 'Asistente de campana eliminado.', $organizacionId, $usuarioId, $actorNombre, $existente, null, ['campana_id' => (int) $existente['campana_id']]);
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
@@ -401,6 +453,34 @@ final class CampanaService
         }
     }
 
+    public function entregarPremiosAsistente(int $asistenteId, int $usuarioId, string $actorNombre): void
+    {
+        $organizacionId = AuthContext::getOrganizacionId();
+        $asistente = $this->campanaDAO->findAttendeeById($asistenteId, $organizacionId);
+        if ($asistente === null) {
+            throw new OutOfBoundsException('Asistente no encontrado.');
+        }
+
+        $afectados = $this->campanaDAO->entregarPremiosAsistente($asistenteId, $organizacionId, $usuarioId);
+        if ($afectados === 0) {
+            throw new InvalidArgumentException('No hay premios pendientes de entregar para este asistente.');
+        }
+
+        $this->auditoriaService->registrar('CAMPANAS', 'CAMPANA_ASISTENTE', $asistenteId, 'ACTUALIZAR', "Premios entregados ({$afectados}).", $organizacionId, $usuarioId, $actorNombre, null, null, ['campana_id' => (int) $asistente['campana_id']]);
+    }
+
+    public function eliminarDecision(int $decisionId, int $usuarioId, string $actorNombre): void
+    {
+        $organizacionId = AuthContext::getOrganizacionId();
+        $existente = $this->campanaDAO->findDecisionById($decisionId, $organizacionId);
+        if ($existente === null) {
+            throw new OutOfBoundsException('Decision no encontrada.');
+        }
+
+        $this->campanaDAO->deleteDecision($decisionId, $organizacionId);
+        $this->auditoriaService->registrar('CAMPANAS', 'CAMPANA_DECISION', $decisionId, 'ELIMINAR', 'Decision de campana eliminada.', $organizacionId, $usuarioId, $actorNombre, $existente, null, ['campana_id' => (int) $existente['campana_id']]);
+    }
+
     /** @param array<string, mixed> $filters @return array<string, mixed> */
     private function normalizarFiltros(array $filters): array
     {
@@ -418,15 +498,15 @@ final class CampanaService
     {
         $nombre = $this->toRequiredText($data['nombre'] ?? ($base?->nombre ?? null), 160, 'El nombre de la campana es obligatorio.');
         $tipo = strtoupper($this->toRequiredText($data['tipo'] ?? ($base?->tipo ?? null), 30, 'El tipo de campana es obligatorio.'));
-        $tiposValidos = ['SEMANA_EVANGELISTICA', 'CAMPANA_2_SEMANAS', 'CAMPANA_ESPECIAL', 'SERIE_CORTA'];
+        $tiposValidos = ['SEMANA_EVANGELISTICA', 'CAMPANA_2_SEMANAS', 'CAMPANA_ESPECIAL', 'SERIE_CORTA', 'OTRO'];
         if (!in_array($tipo, $tiposValidos, true)) {
             throw new InvalidArgumentException('El tipo de campana no es valido.');
         }
 
-        $estado = strtoupper($this->toRequiredText($data['estado'] ?? ($base?->estado ?? null), 20, 'El estado de la campana es obligatorio.'));
-        $estadosValidos = ['BORRADOR', 'ACTIVA', 'FINALIZADA', 'ARCHIVADA'];
+        $estado = strtoupper($this->toRequiredText($data['estado'] ?? ($base?->estado ?? null), 20, 'El estado de la campaña es obligatorio.'));
+        $estadosValidos = ['POR_INICIAR', 'ACTIVA', 'FINALIZADA'];
         if (!in_array($estado, $estadosValidos, true)) {
-            throw new InvalidArgumentException('El estado de la campana no es valido.');
+            throw new InvalidArgumentException('El estado de la campaña no es válido.');
         }
 
         $fechaInicio = $this->toRequiredDate($data['fecha_inicio'] ?? ($base?->fechaInicio ?? null), 'La fecha de inicio es obligatoria.');
@@ -443,7 +523,9 @@ final class CampanaService
             'fecha_inicio' => $fechaInicio,
             'fecha_fin' => $fechaFin,
             'lugar' => $this->toNullableText($data['lugar'] ?? ($base?->lugar ?? null), 180),
+            'hora' => $this->toNullableTime($data['hora'] ?? ($base?->hora ?? null)),
             'predicador' => $this->toNullableText($data['predicador'] ?? ($base?->predicador ?? null), 160),
+            'responsable' => $this->toNullableText($data['responsable'] ?? ($base?->responsable ?? null), 60),
             'responsable_usuario_id' => $this->toOptionalInt($data['responsable_usuario_id'] ?? ($base?->responsableUsuarioId ?? null)),
             'descripcion' => $this->toNullableText($data['descripcion'] ?? ($base?->descripcion ?? null), 1200),
             'estado' => $estado,
@@ -476,7 +558,7 @@ final class CampanaService
     }
 
     /** @param array<string, mixed> $data @param array<string, mixed> $contacto @param array<string, mixed>|null $base @return array<string, mixed> */
-    private function normalizarAsistente(array $data, int $organizacionId, int $campanaId, int $usuarioId, array $contacto, ?array $base = null): array
+    private function normalizarAsistente(array $data, int $organizacionId, ?int $campanaId, int $usuarioId, array $contacto, ?array $base = null): array
     {
         $tipo = strtoupper($this->toRequiredText($data['tipo_asistente'] ?? ($base['tipo_asistente'] ?? null), 20, 'El tipo de asistente es obligatorio.'));
         if (!in_array($tipo, ['MIEMBRO', 'VISITA', 'INTERESADO'], true)) {
@@ -494,12 +576,12 @@ final class CampanaService
             'contacto_id' => (int) $contacto['id'],
             'nombre_snapshot' => (string) $contacto['nombre_completo'],
             'telefono_snapshot' => $contacto['telefono'] ?? null,
-            'procedencia' => $this->toNullableText($data['procedencia'] ?? ($base['procedencia'] ?? null), 120),
+            'procedencia' => $this->toNullableText($data['procedencia'] ?? ($base['procedencia'] ?? null), self::VISITA_PROCEDENCIA_MAX),
             'tipo_asistente' => $tipo,
             'clasificacion_etaria' => $this->toNullableText($data['clasificacion_etaria'] ?? ($base['clasificacion_etaria'] ?? null), 20, true),
             'invitado_por_contacto_id' => $this->toOptionalInt($data['invitado_por_contacto_id'] ?? ($base['invitado_por_contacto_id'] ?? null)),
             'primera_vez' => $this->toBool($data['primera_vez'] ?? ($base['primera_vez'] ?? true)),
-            'observaciones' => $this->toNullableText($data['observaciones'] ?? ($base['observaciones'] ?? null), 600),
+            'observaciones' => $this->toNullableText($data['observaciones'] ?? ($base['observaciones'] ?? null), self::VISITA_OBSERVACIONES_MAX),
             'estado_seguimiento' => $estadoSeguimiento,
             'creado_por' => isset($base['creado_por']) ? (int) $base['creado_por'] : $usuarioId,
             'actualizado_por' => $usuarioId
@@ -511,16 +593,16 @@ final class CampanaService
     {
         $contactoPayload = [
             'nombre_completo' => $data['nombre_completo'] ?? null,
-            'telefono' => $data['telefono'] ?? null,
-            'correo' => $data['correo'] ?? null,
-            'direccion' => $data['direccion'] ?? null,
-            'barrio_comunidad' => $data['barrio_comunidad'] ?? null,
+            'telefono' => $this->normalizarTelefonoVisita($data['telefono'] ?? null, $data['telefono_internacional'] ?? false),
+            'correo' => $this->toNullableEmail($data['correo'] ?? null, self::VISITA_CORREO_MAX),
+            'direccion' => $this->toNullableText($data['direccion'] ?? null, self::VISITA_DIRECCION_MAX),
+            'barrio_comunidad' => $this->toNullableText($data['barrio_comunidad'] ?? null, self::VISITA_BARRIO_MAX),
             'clasificacion_principal' => $this->resolverClasificacionContacto($data['tipo_asistente'] ?? null),
             'es_miembro' => strtoupper((string) ($data['tipo_asistente'] ?? '')) === 'MIEMBRO',
             'estado_contacto' => strtoupper((string) ($data['estado_seguimiento'] ?? 'PENDIENTE')) === 'NO_LOCALIZABLE' ? 'NO_LOCALIZABLE' : 'ACTIVO',
             'origen_principal_clave' => 'CAMPANA',
             'modulo_origen' => 'CAMPANAS',
-            'observaciones_generales' => $data['observaciones'] ?? null,
+            'observaciones_generales' => $this->toNullableText($data['observaciones'] ?? null, self::VISITA_OBSERVACIONES_MAX),
             'fecha_primer_contacto' => date('Y-m-d'),
             'fecha_ultimo_contacto' => date('Y-m-d')
         ];
@@ -564,6 +646,58 @@ final class CampanaService
             }
         }
         return ['id' => $id];
+    }
+
+    private function normalizarTelefonoVisita(mixed $value, mixed $internacional): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $telefono = Sanitizer::cleanString((string) $value);
+        if ($telefono === '') {
+            return null;
+        }
+
+        if (strlen($telefono) > self::VISITA_TELEFONO_MAX) {
+            throw new InvalidArgumentException('El telefono excede el maximo permitido.');
+        }
+
+        $esInternacional = filter_var($internacional, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) === true;
+        if ($esInternacional) {
+            if (preg_match('/^\+?[0-9()\-\s]{7,20}$/', $telefono) !== 1) {
+                throw new InvalidArgumentException('El telefono internacional solo permite numeros, +, guiones, espacios y parentesis.');
+            }
+            return $telefono;
+        }
+
+        if (preg_match('/^\d{4}-\d{4}$/', $telefono) !== 1) {
+            throw new InvalidArgumentException('El telefono debe usar formato 8888-8888.');
+        }
+
+        return $telefono;
+    }
+
+    private function toNullableEmail(mixed $value, int $max): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $email = Sanitizer::cleanString((string) $value);
+        if ($email === '') {
+            return null;
+        }
+
+        if (strlen($email) > $max) {
+            throw new InvalidArgumentException('El correo excede el maximo permitido.');
+        }
+
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new InvalidArgumentException('El correo no tiene un formato valido.');
+        }
+
+        return $email;
     }
 
     private function toRequiredText(mixed $value, int $max, string $message): string

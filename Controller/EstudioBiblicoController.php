@@ -67,6 +67,23 @@ final class EstudioBiblicoController
         }
     }
 
+    public function asignarDesdeVisita(): void
+    {
+        try {
+            $item = $this->service->crearDesdeVisita(EstudioBiblicoValidator::validateAsignarDesdeVisita(Sanitizer::getJsonBody()), AuthContext::getUsuarioId(), AuthContext::getNombre());
+            JsonResponse::sendV2Success(201, 'Estudio biblico asignado correctamente.', ['item' => $item]);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (RuntimeException $e) {
+            JsonResponse::sendV2Error(409, 'CONFLICT_DUPLICATE', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[EstudioBiblicoController::asignarDesdeVisita] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
     public function actualizar(int $id): void
     {
         try {
@@ -112,6 +129,21 @@ final class EstudioBiblicoController
         }
     }
 
+    public function cambiarEstado(int $id): void
+    {
+        try {
+            $item = $this->service->cambiarEstado($id, EstudioBiblicoValidator::validateEstado(Sanitizer::getJsonBody()), AuthContext::getUsuarioId(), AuthContext::getNombre());
+            JsonResponse::sendV2Success(200, 'Estado actualizado correctamente.', ['item' => $item]);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[EstudioBiblicoController::cambiarEstado] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
     public function crearDecision(int $id): void
     {
         try {
@@ -138,6 +170,64 @@ final class EstudioBiblicoController
             JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
         } catch (\Throwable $e) {
             error_log('[EstudioBiblicoController::crearAsignacion] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function listarInstructores(): void
+    {
+        try {
+            $items = $this->service->listarInstructores($_GET);
+            JsonResponse::sendV2Success(200, 'Instructores obtenidos.', ['items' => $items]);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[EstudioBiblicoController::listarInstructores] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function crearInstructor(): void
+    {
+        try {
+            $item = $this->service->crearInstructor(EstudioBiblicoValidator::validateInstructor(Sanitizer::getJsonBody()));
+            JsonResponse::sendV2Success(201, 'Instructor creado correctamente.', ['item' => $item]);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (RuntimeException $e) {
+            JsonResponse::sendV2Error(409, 'CONFLICT_DUPLICATE', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[EstudioBiblicoController::crearInstructor] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function actualizarInstructor(int $id): void
+    {
+        try {
+            $item = $this->service->actualizarInstructor($id, EstudioBiblicoValidator::validateInstructor(Sanitizer::getJsonBody()));
+            JsonResponse::sendV2Success(200, 'Instructor actualizado correctamente.', ['item' => $item]);
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (RuntimeException $e) {
+            JsonResponse::sendV2Error(409, 'CONFLICT_DUPLICATE', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[EstudioBiblicoController::actualizarInstructor] ' . $e->getMessage());
+            JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
+        }
+    }
+
+    public function eliminarInstructor(int $id): void
+    {
+        try {
+            $this->service->eliminarInstructor($id);
+            JsonResponse::sendV2Success(200, 'Instructor desactivado correctamente.');
+        } catch (OutOfBoundsException $e) {
+            JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[EstudioBiblicoController::eliminarInstructor] ' . $e->getMessage());
             JsonResponse::sendV2Error(500, 'INTERNAL_ERROR', 'Error interno del servidor.');
         }
     }

@@ -186,3 +186,68 @@
 - La base tenant-aware de los 4 modulos nuevos ya esta lista para que otro chat continue desde agents sin re-descubrir arquitectura.
 - Los siguientes pasos recomendados ya no son de estructura base, sino de refinamiento: reportes, exportaciones, endurecimiento de validaciones y smoke tests funcionales mas amplios.
 
+## Continuidad Mayo 2026 - Campanas y Estudios Biblicos
+
+### Campanas
+
+- `Campanas` se mantiene como modulo operativo tenant-aware y fuente de visitas compartidas.
+- Endpoints de visitas usados por frontend:
+  - `GET /campanas/visitas`
+  - `GET /campanas/visitas/similares`
+  - `POST /campanas/visitas`
+- El servicio debe conservar:
+  - deduplicacion basica por visitas similares;
+  - telefono Costa Rica `0000-0000` salvo modo internacional desde frontend;
+  - actualizacion de seguimiento a `ESTUDIO_BIBLICO` cuando se asigna un estudio.
+
+### Estudios Biblicos
+
+- Rol nuevo vigente: `INSTRUCTOR_BIBLICO`.
+  - Debe existir como rol real en BD.
+  - Los instructores creados desde el modulo son usuarios reales y tambien aparecen en administracion de usuarios.
+- Endpoints vigentes:
+  - `GET /estudios-biblicos`
+  - `GET /estudios-biblicos/dashboard`
+  - `GET /estudios-biblicos/{id}`
+  - `POST /estudios-biblicos`
+  - `POST /estudios-biblicos/asignar`
+  - `PUT /estudios-biblicos/{id}`
+  - `POST /estudios-biblicos/{id}/estado`
+  - `POST /estudios-biblicos/{id}/sesiones`
+  - `POST /estudios-biblicos/{id}/decisiones`
+  - `POST /estudios-biblicos/{id}/asignaciones`
+  - `GET /estudios-biblicos/instructores`
+  - `POST /estudios-biblicos/instructores`
+  - `PUT /estudios-biblicos/instructores/{id}`
+- Modelo actual:
+  - un estudio puede tener multiples visitas mediante `estudio_biblico_visitas`;
+  - un estudio puede tener multiples responsables mediante `estudio_biblico_responsables`;
+  - las sesiones quedan en `estudio_sesiones` y pueden asociarse al instructor que registra;
+  - el listado para instructor filtra estudios asignados y contabiliza `total_sesiones_responsable`.
+- Reglas de negocio vigentes:
+  - estados permitidos: `ASIGNADO`, `EN_PROCESO`, `PAUSADO`, `FINALIZADO`;
+  - no permitir asignar una visita que ya tenga estudio activo;
+  - el mensaje de duplicado debe nombrar las visitas bloqueadas;
+  - frecuencia valida por `SEMANA`, `MES`, `TRIMESTRE`;
+  - semanal permite hasta 7 sesiones, aunque la fecha de inicio sea futura;
+  - en registro de sesion solo se permite el periodo actual;
+  - periodos vencidos se atienden por justificacion, no por registro normal;
+  - no justificar periodos futuros;
+  - si hay varios instructores, cada uno registra su propia asistencia.
+- Migraciones relacionadas:
+  - `migracion_04052026_estudios_biblicos_instructores.sql`
+  - `migracion_05052026_estudios_biblicos_multiples_visitas_instructores.sql`
+
+### Archivos backend clave
+
+- `Services/EstudioBiblicoService.php`
+- `Modelo/EstudioBiblico/EstudioBiblicoDAO.php`
+- `Modelo/EstudioBiblico/EstudioBiblicoDTO.php`
+- `Modelo/EstudioBiblico/EstudioBiblicoMapper.php`
+- `Validator/EstudioBiblicoValidator.php`
+- `Controller/EstudioBiblicoController.php`
+- `Router/EstudioBiblicoRoutes.php`
+- `Services/UsuarioService.php`
+- `Modelo/Usuario/UsuarioDAO.php`
+- `Middleware/RoleMiddleware.php`
+

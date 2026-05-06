@@ -38,6 +38,7 @@ final class UsuarioValidator
         if (strlen($validated['usuario']) < 3 || strlen($validated['usuario']) > 50) {
             throw new InvalidArgumentException('El usuario debe tener entre 3 y 50 caracteres.');
         }
+        $validated['cargo'] = self::validateCargo($data['cargo'] ?? null);
 
         if (empty($data['password']) || !is_string($data['password'])) {
             throw new InvalidArgumentException('El campo "password" es obligatorio.');
@@ -49,8 +50,8 @@ final class UsuarioValidator
             throw new InvalidArgumentException('El campo "rol_id" es obligatorio y debe ser numerico.');
         }
         $validated['rol_id'] = (int) $data['rol_id'];
-        if ($validated['rol_id'] < 1 || $validated['rol_id'] > 2) {
-            throw new InvalidArgumentException('El rol_id debe ser 1 (ADMIN) o 2 (SECRETARIO).');
+        if ($validated['rol_id'] < 1) {
+            throw new InvalidArgumentException('El rol_id no es valido.');
         }
 
         return $validated;
@@ -82,13 +83,14 @@ final class UsuarioValidator
         if (strlen($validated['usuario']) < 3 || strlen($validated['usuario']) > 50) {
             throw new InvalidArgumentException('El usuario debe tener entre 3 y 50 caracteres.');
         }
+        $validated['cargo'] = self::validateCargo($data['cargo'] ?? null);
 
         if (!isset($data['rol_id']) || !is_numeric($data['rol_id'])) {
             throw new InvalidArgumentException('El campo "rol_id" es obligatorio y debe ser numerico.');
         }
         $validated['rol_id'] = (int) $data['rol_id'];
-        if ($validated['rol_id'] < 1 || $validated['rol_id'] > 2) {
-            throw new InvalidArgumentException('El rol_id debe ser 1 (ADMIN) o 2 (SECRETARIO).');
+        if ($validated['rol_id'] < 1) {
+            throw new InvalidArgumentException('El rol_id no es valido.');
         }
 
         $validated['activo'] = isset($data['activo']) ? (bool) $data['activo'] : true;
@@ -204,5 +206,27 @@ final class UsuarioValidator
         if (!preg_match('/[^A-Za-z0-9]/', $password)) {
             throw new InvalidArgumentException('El password debe incluir al menos un caracter especial.');
         }
+    }
+
+    private static function validateCargo(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (!is_string($value)) {
+            throw new InvalidArgumentException('El cargo debe ser texto.');
+        }
+
+        $cargo = Sanitizer::cleanString($value);
+        if ($cargo === '') {
+            return null;
+        }
+
+        if (strlen($cargo) > 120) {
+            throw new InvalidArgumentException('El cargo no puede superar 120 caracteres.');
+        }
+
+        return $cargo;
     }
 }

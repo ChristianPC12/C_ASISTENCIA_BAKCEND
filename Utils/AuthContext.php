@@ -174,6 +174,26 @@ final class AuthContext
     }
 
     /**
+     * Verifica si el usuario autenticado tiene rol de Ministerios Personales.
+     *
+     * @return bool
+     */
+    public static function esMinisterioPersonal(): bool
+    {
+        return self::$rol === 'MINISTERIO_PERSONAL';
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene rol de instructor biblico.
+     *
+     * @return bool
+     */
+    public static function esInstructorBiblico(): bool
+    {
+        return self::$rol === 'INSTRUCTOR_BIBLICO';
+    }
+
+    /**
      * Verifica si el usuario autenticado tiene rol SUPERADMIN.
      *
      * @return bool

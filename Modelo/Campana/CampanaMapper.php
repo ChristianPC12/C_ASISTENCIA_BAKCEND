@@ -20,7 +20,9 @@ final class CampanaMapper
         $dto->fechaInicio = (string) ($row['fecha_inicio'] ?? '');
         $dto->fechaFin = (string) ($row['fecha_fin'] ?? '');
         $dto->lugar = isset($row['lugar']) && $row['lugar'] !== null ? (string) $row['lugar'] : null;
+        $dto->hora = isset($row['hora']) && $row['hora'] !== null ? (string) $row['hora'] : null;
         $dto->predicador = isset($row['predicador']) && $row['predicador'] !== null ? (string) $row['predicador'] : null;
+        $dto->responsable = isset($row['responsable']) && $row['responsable'] !== null ? (string) $row['responsable'] : null;
         $dto->responsableUsuarioId = isset($row['responsable_usuario_id']) && $row['responsable_usuario_id'] !== null
             ? (int) $row['responsable_usuario_id']
             : null;
@@ -60,7 +62,9 @@ final class CampanaMapper
             'fecha_inicio' => $dto->fechaInicio,
             'fecha_fin' => $dto->fechaFin,
             'lugar' => $dto->lugar,
+            'hora' => $dto->hora,
             'predicador' => $dto->predicador,
+            'responsable' => $dto->responsable,
             'responsable_usuario_id' => $dto->responsableUsuarioId,
             'responsable_usuario_nombre' => $dto->responsableUsuarioNombre,
             'descripcion' => $dto->descripcion,

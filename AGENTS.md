@@ -63,3 +63,28 @@ El siguiente bloque de trabajo lo define el owner funcional segun prioridad de m
 - Ya existe integracion cruzada Campana -> Estudio Biblico y PC -> Estudio Biblico con auditoria y persistencia de estado en el modulo origen.
 - Si otro chat recibe la instruccion 'estudia los agents', debe asumir como siguiente bloque natural reportes/exportaciones, pruebas funcionales mas profundas y mas integraciones cruzadas, sin romper el aislamiento por organizacion_id.
 
+## Continuidad operativa actual (2026-05-06)
+
+Si otro chat recibe "ponte al tanto" o "continua desde donde quedamos", debe leer primero:
+
+1. `.agents/escalabilidad/CONTEXTO_ACTUAL_BACKEND_MULTIIGLESIA.md`
+2. `.agents/escalabilidad/TICKETS_BACKEND_MULTIIGLESIA.md`
+3. `Contexto_actual_bd.md`
+4. Frontend: `C_ASISTENCIA_FRONTEND/C_ASISTENCIA_FRONTEND/.agents/react-doctor/CONTEXTO_ACTUAL.md`
+
+Estado real del trabajo:
+
+- `Campanas` esta estable para esta etapa y aporta visitas compartidas para Estudios Biblicos.
+- `Estudios Biblicos` es el modulo activo actual y ya soporta:
+  - rol `INSTRUCTOR_BIBLICO`;
+  - CRUD de instructores como usuarios reales;
+  - asignacion multiple de visitas e instructores;
+  - validacion para impedir visitas con estudio biblico activo duplicado;
+  - sesiones registradas por instructor responsable;
+  - justificacion de faltas por periodo;
+  - estados de estudio: `ASIGNADO`, `EN_PROCESO`, `PAUSADO`, `FINALIZADO`.
+- Migraciones relacionadas:
+  - `migracion_04052026_estudios_biblicos_instructores.sql`
+  - `migracion_05052026_estudios_biblicos_multiples_visitas_instructores.sql`
+- Cualquier cambio debe conservar aislamiento por `organizacion_id` y sincronizar contrato con frontend.
+

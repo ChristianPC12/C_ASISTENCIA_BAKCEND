@@ -20,6 +20,7 @@ final class UsuarioMapper
         $dto->id              = (int) $row['id'];
         $dto->nombreCompleto  = (string) $row['nombre_completo'];
         $dto->usuario         = (string) $row['usuario'];
+        $dto->cargo           = (string) ($row['cargo'] ?? '');
         $dto->passwordHash    = (string) ($row['password_hash'] ?? '');
         $dto->passwordActualizadaEn = (string) ($row['password_actualizada_en'] ?? '');
         $dto->passwordExpiraEn = (string) ($row['password_expira_en'] ?? '');
@@ -53,6 +54,7 @@ final class UsuarioMapper
             'id'               => $dto->id,
             'nombre_completo'  => $dto->nombreCompleto,
             'usuario'          => $dto->usuario,
+            'cargo'            => $dto->cargo !== '' ? $dto->cargo : null,
             'rol_id'           => $dto->rolId,
             'rol'              => $dto->rolNombre,
             'activo'           => $dto->activo,

@@ -15,8 +15,12 @@ final class EstudioBiblicoMapper
         $dto->id = (int) ($row['id'] ?? 0);
         $dto->organizacionId = (int) ($row['organizacion_id'] ?? 0);
         $dto->contactoId = (int) ($row['contacto_id'] ?? 0);
+        $dto->visitaAsistenteId = isset($row['visita_asistente_id']) && $row['visita_asistente_id'] !== null ? (int) $row['visita_asistente_id'] : null;
         $dto->contactoNombre = (string) ($row['contacto_nombre'] ?? $row['nombre_completo'] ?? '');
         $dto->contactoTelefono = isset($row['contacto_telefono']) && $row['contacto_telefono'] !== null ? (string) $row['contacto_telefono'] : null;
+        $dto->contactoCorreo = isset($row['contacto_correo']) && $row['contacto_correo'] !== null ? (string) $row['contacto_correo'] : null;
+        $dto->contactoDireccion = isset($row['contacto_direccion']) && $row['contacto_direccion'] !== null ? (string) $row['contacto_direccion'] : null;
+        $dto->contactoBarrioComunidad = isset($row['contacto_barrio_comunidad']) && $row['contacto_barrio_comunidad'] !== null ? (string) $row['contacto_barrio_comunidad'] : null;
         $dto->origenClave = isset($row['origen_clave']) && $row['origen_clave'] !== null ? (string) $row['origen_clave'] : null;
         $dto->campanaOrigenId = isset($row['campana_origen_id']) && $row['campana_origen_id'] !== null ? (int) $row['campana_origen_id'] : null;
         $dto->campanaOrigenNombre = isset($row['campana_origen_nombre']) && $row['campana_origen_nombre'] !== null ? (string) $row['campana_origen_nombre'] : null;
@@ -27,11 +31,14 @@ final class EstudioBiblicoMapper
         $dto->instructorSecundarioNombre = isset($row['instructor_secundario_nombre']) && $row['instructor_secundario_nombre'] !== null ? (string) $row['instructor_secundario_nombre'] : null;
         $dto->responsableUsuarioId = isset($row['responsable_usuario_id']) && $row['responsable_usuario_id'] !== null ? (int) $row['responsable_usuario_id'] : null;
         $dto->responsableUsuarioNombre = isset($row['responsable_usuario_nombre']) && $row['responsable_usuario_nombre'] !== null ? (string) $row['responsable_usuario_nombre'] : null;
+        $dto->responsableUsuarioCargo = isset($row['responsable_usuario_cargo']) && $row['responsable_usuario_cargo'] !== null ? (string) $row['responsable_usuario_cargo'] : null;
         $dto->modalidad = (string) ($row['modalidad'] ?? 'INDIVIDUAL');
         $dto->materialEstudio = isset($row['material_estudio']) && $row['material_estudio'] !== null ? (string) $row['material_estudio'] : null;
         $dto->leccionActual = isset($row['leccion_actual']) && $row['leccion_actual'] !== null ? (string) $row['leccion_actual'] : null;
         $dto->totalLeccionesCompletadas = (int) ($row['total_lecciones_completadas'] ?? 0);
         $dto->fechaInicio = (string) ($row['fecha_inicio'] ?? '');
+        $dto->frecuenciaPeriodo = (string) ($row['frecuencia_periodo'] ?? 'SEMANA');
+        $dto->frecuenciaCantidad = (int) ($row['frecuencia_cantidad'] ?? 1);
         $dto->fechaUltimaSesion = isset($row['fecha_ultima_sesion']) && $row['fecha_ultima_sesion'] !== null ? (string) $row['fecha_ultima_sesion'] : null;
         $dto->proximaSesion = isset($row['proxima_sesion']) && $row['proxima_sesion'] !== null ? (string) $row['proxima_sesion'] : null;
         $dto->estadoGeneral = (string) ($row['estado_general'] ?? 'NUEVO');
@@ -56,8 +63,12 @@ final class EstudioBiblicoMapper
             'id' => $dto->id,
             'organizacion_id' => $dto->organizacionId,
             'contacto_id' => $dto->contactoId,
+            'visita_asistente_id' => $dto->visitaAsistenteId,
             'contacto_nombre' => $dto->contactoNombre,
             'contacto_telefono' => $dto->contactoTelefono,
+            'contacto_correo' => $dto->contactoCorreo,
+            'contacto_direccion' => $dto->contactoDireccion,
+            'contacto_barrio_comunidad' => $dto->contactoBarrioComunidad,
             'origen_clave' => $dto->origenClave,
             'campana_origen_id' => $dto->campanaOrigenId,
             'campana_origen_nombre' => $dto->campanaOrigenNombre,
@@ -68,11 +79,14 @@ final class EstudioBiblicoMapper
             'instructor_secundario_nombre' => $dto->instructorSecundarioNombre,
             'responsable_usuario_id' => $dto->responsableUsuarioId,
             'responsable_usuario_nombre' => $dto->responsableUsuarioNombre,
+            'responsable_usuario_cargo' => $dto->responsableUsuarioCargo,
             'modalidad' => $dto->modalidad,
             'material_estudio' => $dto->materialEstudio,
             'leccion_actual' => $dto->leccionActual,
             'total_lecciones_completadas' => $dto->totalLeccionesCompletadas,
             'fecha_inicio' => $dto->fechaInicio,
+            'frecuencia_periodo' => $dto->frecuenciaPeriodo,
+            'frecuencia_cantidad' => $dto->frecuenciaCantidad,
             'fecha_ultima_sesion' => $dto->fechaUltimaSesion,
             'proxima_sesion' => $dto->proximaSesion,
             'estado_general' => $dto->estadoGeneral,

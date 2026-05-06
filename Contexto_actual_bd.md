@@ -173,3 +173,38 @@ Las vistas tienen las mismas columnas que `asistencia_registro`.
 - Los nombres de visitas se guardan como texto libre. Si en el futuro se necesita un catalogo
   de visitantes frecuentes, se puede crear una tabla `visitantes` y una tabla puente
   `asistencia_visitantes`.
+
+---
+
+## Actualizacion operativa pendiente de consolidar en dump (2026-05-06)
+
+El dump/documento base anterior es historico. El estado real del proyecto ya incluye los modulos misioneros multi-tenant y debe revisarse junto con las migraciones nuevas.
+
+Migraciones relevantes:
+
+- `migracion_02042026_modulos_ministerio_base.sql`
+- `migracion_02042026_modulos_ministerio_operativos.sql`
+- `migracion_04042026_campanas_estado_por_iniciar.sql`
+- `migracion_04042026_campanas_hora_responsable.sql`
+- `migracion_04042026_campanas_tipo_otro.sql`
+- `migracion_04052026_estudios_biblicos_instructores.sql`
+- `migracion_05052026_estudios_biblicos_multiples_visitas_instructores.sql`
+
+Tablas/conceptos nuevos que otro agente debe considerar:
+
+- `contactos_misioneros`: entidad compartida para visitas/interesados/lideres/instructores.
+- `campanas`, `campana_sesiones`, `campana_asistentes`, `campana_asistencia_sesiones`, `campana_decisiones`.
+- `estudios_biblicos`, `estudio_sesiones`, `estudio_decisiones`, `estudio_asignaciones`.
+- `estudio_biblico_visitas`: relacion multiple entre estudio y visitas.
+- `estudio_biblico_responsables`: relacion multiple entre estudio e instructores responsables.
+- `seguimiento_tareas` y `auditoria_eventos`: trazabilidad compartida entre modulos.
+
+Reglas actuales para `Estudios Biblicos`:
+
+- rol nuevo: `INSTRUCTOR_BIBLICO`;
+- estados operativos: `ASIGNADO`, `EN_PROCESO`, `PAUSADO`, `FINALIZADO`;
+- una visita no debe tener mas de un estudio biblico activo;
+- un estudio puede tener multiples visitas e instructores;
+- cada instructor registra su propia sesion/asistencia;
+- periodos vencidos se justifican y periodos futuros no se registran ni justifican;
+- todo debe conservar `organizacion_id`.

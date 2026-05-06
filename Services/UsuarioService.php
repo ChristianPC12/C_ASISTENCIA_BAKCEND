@@ -19,7 +19,8 @@ final class UsuarioService
     private const CUPOS_DEFAULT = [
         'ADMIN' => 2,
         'SECRETARIO' => 2,
-        'MINISTERIO_PERSONAL' => 3
+        'MINISTERIO_PERSONAL' => 2,
+        'INSTRUCTOR_BIBLICO' => 50
     ];
 
     public function __construct()
@@ -97,7 +98,8 @@ final class UsuarioService
             (string) $data['usuario'],
             $passwordHash,
             (int) $data['rol_id'],
-            $organizacionId
+            $organizacionId,
+            $this->normalizarCargo($data['cargo'] ?? null)
         );
 
         $creado = $this->obtenerPorId($id);
@@ -155,7 +157,8 @@ final class UsuarioService
             (string) $data['nombre_completo'],
             (string) $data['usuario'],
             (int) $data['rol_id'],
-            (bool) $data['activo']
+            (bool) $data['activo'],
+            $this->normalizarCargo($data['cargo'] ?? null)
         );
 
         // Actualizar password si se envio.
@@ -346,6 +349,39 @@ final class UsuarioService
         }
 
         return $rol;
+    }
+
+    /**
+     * Obtiene el ID de un rol por nombre.
+     *
+     * @param string $rolNombre
+     * @return int
+     */
+    public function resolverRolIdPorNombre(string $rolNombre): int
+    {
+        $rolId = $this->usuarioDAO->findRolIdByNombre(strtoupper($rolNombre));
+        if ($rolId === null) {
+            throw new RuntimeException('No existe rol ' . strtoupper($rolNombre) . ' configurado en el sistema.');
+        }
+
+        return $rolId;
+    }
+
+    private function normalizarCargo(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $cargo = Sanitizer::cleanString((string) $value);
+        if ($cargo === '') {
+            return null;
+        }
+        if (strlen($cargo) > 120) {
+            throw new InvalidArgumentException('El cargo no puede superar 120 caracteres.');
+        }
+
+        return $cargo;
     }
 
     /**

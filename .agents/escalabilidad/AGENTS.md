@@ -62,3 +62,21 @@ Antes de cerrar cambios en agentes backend:
 - estado `[ ]/[~]/[x]` coincide con codigo real,
 - dependencias entre tickets estan claras,
 - se deja visible el siguiente ticket recomendado.
+
+## Continuidad rapida para chats nuevos (2026-05-06)
+
+Cuando el owner pida "ponte al tanto", el agente debe asumir que la base multi-tenant ya esta cerrada y que el trabajo actual esta en modulos misioneros, sobre todo `Estudios Biblicos`.
+
+Lectura minima para continuar:
+
+1. `CONTEXTO_ACTUAL_BACKEND_MULTIIGLESIA.md`, seccion `Continuidad Mayo 2026`.
+2. `TICKETS_BACKEND_MULTIIGLESIA.md`, seccion de notas 2026-05-06.
+3. Frontend: `.agents/react-doctor/CONTEXTO_ACTUAL.md`, seccion `Continuidad Mayo 2026`.
+
+Reglas de continuidad:
+
+- No reabrir B0..B7 salvo instruccion explicita.
+- Preservar `organizacion_id` en toda consulta nueva.
+- Mantener `INSTRUCTOR_BIBLICO` como usuario real del sistema.
+- No duplicar estudios activos para una misma visita.
+- Si se toca `EstudioBiblicoService`, validar tambien `EstudioBiblicoDAO`, `EstudioBiblicoValidator`, rutas y frontend.

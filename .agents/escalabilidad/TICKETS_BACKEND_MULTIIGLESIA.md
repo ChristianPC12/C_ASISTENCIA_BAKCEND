@@ -120,3 +120,24 @@ Soporte operativo/documental B7-T03:
 - Ticket resuelto: CRUD operativo para cuentas SUPERADMIN globales.
 - Ticket resuelto: revocación de tokens al cambiar contraseña de SUPERADMIN.
 - Ticket resuelto: creación de campo global sin exponer código manual en frontend.
+
+## Notas de continuidad post-B7 (2026-05-06)
+
+- Sin reapertura de B0..B7.
+- Bloque misionero en refinamiento:
+  - `Campanas` estable para esta etapa;
+  - `Estudios Biblicos` en pulido funcional final de asignacion, instructores y registro de sesiones.
+- Cambios consolidados:
+  - rol `INSTRUCTOR_BIBLICO`;
+  - instructores como usuarios reales del sistema;
+  - asignacion multiple de visitas/instructores;
+  - validacion de visita con estudio activo;
+  - sesiones por instructor responsable;
+  - justificacion de faltas por periodo;
+  - estados reducidos a `ASIGNADO`, `EN_PROCESO`, `PAUSADO`, `FINALIZADO`.
+- Evidencia principal:
+  - codigo backend en `Services/EstudioBiblicoService.php`, `Modelo/EstudioBiblico/*`, `Router/EstudioBiblicoRoutes.php`, `Controller/EstudioBiblicoController.php`;
+  - codigo frontend en `src/pages/EstudiosBiblicosPage.jsx`, `src/hooks/useEstudiosBiblicos.js`, `src/styles/iasd-theme.css`.
+- Siguiente trabajo recomendado:
+  - terminar smoke tests funcionales de `Registrar sesion` con varios instructores;
+  - revisar reportes/indicadores para mostrar secuencia verde/amarillo/rojo de registros, justificaciones y faltantes.

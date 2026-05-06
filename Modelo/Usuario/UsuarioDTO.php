@@ -19,6 +19,9 @@ final class UsuarioDTO
     public string $usuario;
 
     /** @var string */
+    public string $cargo;
+
+    /** @var string */
     public string $passwordHash;
 
     /** @var string */

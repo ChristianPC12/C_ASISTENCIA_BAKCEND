@@ -14,7 +14,9 @@ final class CampanaDTO
     public string $fechaInicio;
     public string $fechaFin;
     public ?string $lugar;
+    public ?string $hora;
     public ?string $predicador;
+    public ?string $responsable;
     public ?int $responsableUsuarioId;
     public ?string $responsableUsuarioNombre;
     public ?string $descripcion;
@@ -37,7 +39,9 @@ final class CampanaDTO
         $this->fechaInicio = '';
         $this->fechaFin = '';
         $this->lugar = null;
+        $this->hora = null;
         $this->predicador = null;
+        $this->responsable = null;
         $this->responsableUsuarioId = null;
         $this->responsableUsuarioNombre = null;
         $this->descripcion = null;

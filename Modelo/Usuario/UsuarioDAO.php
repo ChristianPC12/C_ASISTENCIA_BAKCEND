@@ -27,7 +27,7 @@ final class UsuarioDAO
      */
     public function findByUsuario(string $usuario): ?UsuarioDTO
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -59,7 +59,7 @@ final class UsuarioDAO
      */
     public function findById(int $id): ?UsuarioDTO
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -90,7 +90,7 @@ final class UsuarioDAO
      */
     public function findAll(): array
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -121,7 +121,7 @@ final class UsuarioDAO
      */
     public function findAllByOrganizacion(int $organizacionId): array
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -153,6 +153,53 @@ final class UsuarioDAO
     }
 
     /**
+     * Lista usuarios por rol dentro de una organizacion.
+     *
+     * @param int    $organizacionId
+     * @param string $rolNombre
+     * @param string $q
+     * @return UsuarioDTO[]
+     */
+    public function findAllByRolNombreInOrganizacion(int $organizacionId, string $rolNombre, string $q = ''): array
+    {
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
+                       u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
+                       u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
+                       o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
+                       d.codigo AS distrito_codigo, d.nombre AS distrito_nombre,
+                       u.creado_en, u.actualizado_en
+                FROM usuarios u
+                INNER JOIN roles r ON r.id = u.rol_id
+                LEFT JOIN organizaciones o ON o.id = u.organizacion_id
+                LEFT JOIN campos c ON c.id = o.campo_id
+                LEFT JOIN distritos d ON d.id = o.distrito_id
+                WHERE u.organizacion_id = :organizacion_id
+                  AND r.nombre = :rol_nombre";
+
+        $params = [
+            ':organizacion_id' => $organizacionId,
+            ':rol_nombre' => $rolNombre
+        ];
+
+        if ($q !== '') {
+            $sql .= " AND (u.nombre_completo LIKE :q OR u.usuario LIKE :q OR u.cargo LIKE :q)";
+            $params[':q'] = '%' . $q . '%';
+        }
+
+        $sql .= " ORDER BY u.activo DESC, u.nombre_completo ASC, u.id ASC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+
+        $usuarios = [];
+        while ($row = $stmt->fetch()) {
+            $usuarios[] = UsuarioMapper::fromRow($row);
+        }
+
+        return $usuarios;
+    }
+
+    /**
      * Busca un usuario por ID dentro de una organizacion.
      *
      * @param int $id
@@ -161,7 +208,7 @@ final class UsuarioDAO
      */
     public function findByIdInOrganizacion(int $id, int $organizacionId): ?UsuarioDTO
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -197,7 +244,7 @@ final class UsuarioDAO
      */
     public function findAllSuperadmins(): array
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -229,7 +276,7 @@ final class UsuarioDAO
      */
     public function findSuperadminById(int $id): ?UsuarioDTO
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
@@ -269,14 +316,15 @@ final class UsuarioDAO
         string $usuario,
         string $passwordHash,
         int $rolId,
-        int $organizacionId
+        int $organizacionId,
+        ?string $cargo = null
     ): int
     {
         $sql = "INSERT INTO usuarios (
-                    nombre_completo, usuario, password_hash, password_actualizada_en, password_expira_en, rol_id, organizacion_id
+                    nombre_completo, usuario, cargo, password_hash, password_actualizada_en, password_expira_en, rol_id, organizacion_id
                 )
                 VALUES (
-                    :nombre_completo, :usuario, :password_hash, NOW(),
+                    :nombre_completo, :usuario, :cargo, :password_hash, NOW(),
                     DATE_ADD(NOW(), INTERVAL " . (int) PASSWORD_EXPIRY_DAYS . " DAY),
                     :rol_id, :organizacion_id
                 )";
@@ -285,6 +333,7 @@ final class UsuarioDAO
         $stmt->execute([
             ':nombre_completo' => $nombreCompleto,
             ':usuario'         => $usuario,
+            ':cargo'           => $cargo,
             ':password_hash'   => $passwordHash,
             ':rol_id'          => $rolId,
             ':organizacion_id' => $organizacionId
@@ -303,11 +352,12 @@ final class UsuarioDAO
      * @param bool   $activo          Estado activo.
      * @return bool
      */
-    public function update(int $id, string $nombreCompleto, string $usuario, int $rolId, bool $activo): bool
+    public function update(int $id, string $nombreCompleto, string $usuario, int $rolId, bool $activo, ?string $cargo = null): bool
     {
         $sql = "UPDATE usuarios
                 SET nombre_completo = :nombre_completo,
                     usuario = :usuario,
+                    cargo = :cargo,
                     rol_id = :rol_id,
                     activo = :activo
                 WHERE id = :id";
@@ -316,6 +366,7 @@ final class UsuarioDAO
         return $stmt->execute([
             ':nombre_completo' => $nombreCompleto,
             ':usuario'         => $usuario,
+            ':cargo'           => $cargo,
             ':rol_id'          => $rolId,
             ':activo'          => $activo ? 1 : 0,
             ':id'              => $id
@@ -512,7 +563,7 @@ final class UsuarioDAO
      */
     public function findAdminActivoByOrganizacion(int $organizacionId): ?UsuarioDTO
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.password_hash,
+        $sql = "SELECT u.id, u.nombre_completo, u.usuario, u.cargo, u.password_hash,
                        u.password_actualizada_en, u.password_expira_en, u.rol_id, r.nombre AS rol_nombre, u.activo,
                        u.organizacion_id, o.codigo_instancia, o.tipo_organizacion, o.nombre_organizacion,
                        o.activa AS organizacion_activa, c.codigo AS campo_codigo, c.nombre AS campo_nombre,
