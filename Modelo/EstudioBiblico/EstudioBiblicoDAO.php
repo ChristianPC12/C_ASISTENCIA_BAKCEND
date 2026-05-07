@@ -114,19 +114,23 @@ final class EstudioBiblicoDAO
         }
 
         if (!empty($filters['responsable_usuario_id'])) {
-            $sql .= ' AND (
-                e.responsable_usuario_id = :responsable_usuario_id
-                OR EXISTS (
-                    SELECT 1
-                    FROM estudio_biblico_responsables erf
-                    WHERE erf.estudio_id = e.id
-                      AND erf.organizacion_id = e.organizacion_id
-                      AND erf.responsable_usuario_id = :responsable_usuario_id_rel
-                      AND erf.vigente = 1
-                )
-            )';
             $params[':responsable_usuario_id'] = (int) $filters['responsable_usuario_id'];
-            $params[':responsable_usuario_id_rel'] = (int) $filters['responsable_usuario_id'];
+            if (!empty($filters['solo_responsable_principal'])) {
+                $sql .= ' AND e.responsable_usuario_id = :responsable_usuario_id';
+            } else {
+                $sql .= ' AND (
+                    e.responsable_usuario_id = :responsable_usuario_id
+                    OR EXISTS (
+                        SELECT 1
+                        FROM estudio_biblico_responsables erf
+                        WHERE erf.estudio_id = e.id
+                          AND erf.organizacion_id = e.organizacion_id
+                          AND erf.responsable_usuario_id = :responsable_usuario_id_rel
+                          AND erf.vigente = 1
+                    )
+                )';
+                $params[':responsable_usuario_id_rel'] = (int) $filters['responsable_usuario_id'];
+            }
         }
 
         if (!empty($filters['fecha_desde'])) {
@@ -443,16 +447,20 @@ final class EstudioBiblicoDAO
             $params[':origen_clave'] = $filters['origen_clave'];
         }
         if (!empty($filters['responsable_usuario_id'])) {
-            $where[] = "(e.responsable_usuario_id = :responsable_usuario_id OR EXISTS (
-                SELECT 1
-                FROM estudio_biblico_responsables erd
-                WHERE erd.estudio_id = e.id
-                  AND erd.organizacion_id = e.organizacion_id
-                  AND erd.responsable_usuario_id = :responsable_usuario_id_rel
-                  AND erd.vigente = 1
-            ))";
             $params[':responsable_usuario_id'] = (int) $filters['responsable_usuario_id'];
-            $params[':responsable_usuario_id_rel'] = (int) $filters['responsable_usuario_id'];
+            if (!empty($filters['solo_responsable_principal'])) {
+                $where[] = 'e.responsable_usuario_id = :responsable_usuario_id';
+            } else {
+                $where[] = "(e.responsable_usuario_id = :responsable_usuario_id OR EXISTS (
+                    SELECT 1
+                    FROM estudio_biblico_responsables erd
+                    WHERE erd.estudio_id = e.id
+                      AND erd.organizacion_id = e.organizacion_id
+                      AND erd.responsable_usuario_id = :responsable_usuario_id_rel
+                      AND erd.vigente = 1
+                ))";
+                $params[':responsable_usuario_id_rel'] = (int) $filters['responsable_usuario_id'];
+            }
         }
         if (!empty($filters['fecha_desde'])) {
             $where[] = 'e.fecha_inicio >= :fecha_desde';
@@ -717,6 +725,41 @@ final class EstudioBiblicoDAO
             ':responsable_usuario_id' => $responsableUsuarioId
         ]);
         return $stmt->fetchColumn() !== false;
+    }
+
+    public function setStudyResponsablePrincipal(int $estudioId, int $organizacionId, int $responsableUsuarioId, int $usuarioId): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE estudio_biblico_responsables
+            SET principal = 0,
+                actualizado_por = :actualizado_por,
+                actualizado_en = CURRENT_TIMESTAMP
+            WHERE estudio_id = :estudio_id
+              AND organizacion_id = :organizacion_id
+              AND vigente = 1');
+        $stmt->execute([
+            ':actualizado_por' => $usuarioId,
+            ':estudio_id' => $estudioId,
+            ':organizacion_id' => $organizacionId
+        ]);
+
+        $sql = 'INSERT INTO estudio_biblico_responsables (
+                    organizacion_id, estudio_id, responsable_usuario_id, principal, vigente, creado_por, actualizado_por
+                ) VALUES (
+                    :organizacion_id, :estudio_id, :responsable_usuario_id, 1, 1, :creado_por, :actualizado_por
+                )
+                ON DUPLICATE KEY UPDATE
+                    principal = 1,
+                    vigente = 1,
+                    actualizado_por = VALUES(actualizado_por),
+                    actualizado_en = CURRENT_TIMESTAMP';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':organizacion_id' => $organizacionId,
+            ':estudio_id' => $estudioId,
+            ':responsable_usuario_id' => $responsableUsuarioId,
+            ':creado_por' => $usuarioId,
+            ':actualizado_por' => $usuarioId
+        ]);
     }
 
     public function closeAssignments(int $estudioId, int $organizacionId, int $usuarioId, ?string $motivo): bool

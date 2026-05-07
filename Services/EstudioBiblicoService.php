@@ -85,6 +85,9 @@ final class EstudioBiblicoService
         $principal = $this->resolverInstructor($data, 'instructor_principal', $usuarioId, $actorNombre);
         $secundario = $this->resolverInstructor($data, 'instructor_secundario', $usuarioId, $actorNombre);
         $payload = $this->normalizarEstudio($data, $organizacionId, $usuarioId, $contacto, $principal, $secundario);
+        if ($payload['responsable_usuario_id'] !== null) {
+            $this->assertUsuarioEsInstructor((int) $payload['responsable_usuario_id']);
+        }
 
         $duplicado = $this->estudioDAO->findOpenByContactoId((int) $contacto['id'], $organizacionId);
         if ($duplicado !== null) {
@@ -92,6 +95,9 @@ final class EstudioBiblicoService
         }
 
         $id = $this->estudioDAO->insert($payload);
+        if ($payload['responsable_usuario_id'] !== null) {
+            $this->estudioDAO->setStudyResponsablePrincipal($id, $organizacionId, (int) $payload['responsable_usuario_id'], $usuarioId);
+        }
         $item = $this->obtener($id);
         $this->registrarAsignacionInicial($id, $payload, $usuarioId, $actorNombre, 'Asignacion inicial del estudio.');
         $this->auditoriaService->registrar('ESTUDIOS_BIBLICOS', 'ESTUDIO_BIBLICO', $id, 'CREAR', 'Estudio biblico creado.', $organizacionId, $usuarioId, $actorNombre, null, $item);
@@ -115,6 +121,9 @@ final class EstudioBiblicoService
         $principal = $this->resolverInstructor($data, 'instructor_principal', $usuarioId, $actorNombre, $existente->instructorPrincipalContactoId);
         $secundario = $this->resolverInstructor($data, 'instructor_secundario', $usuarioId, $actorNombre, $existente->instructorSecundarioContactoId);
         $payload = $this->normalizarEstudio($data, $organizacionId, $usuarioId, $contacto, $principal, $secundario, $existente);
+        if ($payload['responsable_usuario_id'] !== null) {
+            $this->assertUsuarioEsInstructor((int) $payload['responsable_usuario_id']);
+        }
 
         $duplicado = $this->estudioDAO->findOpenByContactoId((int) $contacto['id'], $organizacionId, $id);
         if ($duplicado !== null) {
@@ -123,6 +132,9 @@ final class EstudioBiblicoService
 
         $antes = EstudioBiblicoMapper::toArray($existente);
         $this->estudioDAO->update($id, $payload, $organizacionId);
+        if ($payload['responsable_usuario_id'] !== null) {
+            $this->estudioDAO->setStudyResponsablePrincipal($id, $organizacionId, (int) $payload['responsable_usuario_id'], $usuarioId);
+        }
 
         if (
             $existente->instructorPrincipalContactoId !== $payload['instructor_principal_contacto_id']
@@ -255,6 +267,9 @@ final class EstudioBiblicoService
             'creado_por' => $usuarioId,
             'actualizado_por' => $usuarioId
         ];
+        if ($payload['responsable_usuario_id'] !== null) {
+            $this->assertUsuarioEsInstructor((int) $payload['responsable_usuario_id']);
+        }
 
         $this->estudioDAO->closeAssignments($estudioId, $organizacionId, $usuarioId, $payload['motivo_cambio']);
         $id = $this->estudioDAO->insertAssignment($payload);
@@ -281,6 +296,9 @@ final class EstudioBiblicoService
             'motivo_cierre_pausa' => $estudio->motivoCierrePausa,
             'actualizado_por' => $usuarioId
         ], $organizacionId);
+        if ($payload['responsable_usuario_id'] !== null) {
+            $this->estudioDAO->setStudyResponsablePrincipal($estudioId, $organizacionId, (int) $payload['responsable_usuario_id'], $usuarioId);
+        }
 
         $asignacion = $this->buscarPorIdEnLista($this->estudioDAO->listAssignments($estudioId, $organizacionId), $id);
         $this->auditoriaService->registrar('ESTUDIOS_BIBLICOS', 'ESTUDIO_ASIGNACION', $id, 'CREAR', 'Asignacion de estudio actualizada.', $organizacionId, $usuarioId, $actorNombre, null, $asignacion, ['estudio_id' => $estudioId]);
@@ -304,6 +322,19 @@ final class EstudioBiblicoService
         if ($responsableIds === []) {
             throw new InvalidArgumentException('Debe seleccionar al menos un instructor responsable.');
         }
+        $representanteId = $this->toOptionalInt($data['responsable_usuario_id'] ?? null) ?? $responsableIds[0];
+        if (!in_array($representanteId, $responsableIds, true)) {
+            throw new InvalidArgumentException('El instructor representante debe estar dentro de los instructores seleccionados.');
+        }
+
+        $responsableIdsOrdenados = [$representanteId];
+        foreach ($responsableIds as $responsableId) {
+            if ($responsableId !== $representanteId) {
+                $responsableIdsOrdenados[] = $responsableId;
+            }
+        }
+        $responsableIds = array_values(array_unique($responsableIdsOrdenados));
+
         foreach ($responsableIds as $responsableId) {
             $this->assertUsuarioEsInstructor($responsableId);
         }
@@ -356,7 +387,7 @@ final class EstudioBiblicoService
             'visita_asistente_id' => $visitaIds[0],
             'origen_clave' => 'VISITA_IGLESIA',
             'campana_origen_id' => $visita['campana_id'] ?? null,
-            'responsable_usuario_id' => $responsableIds[0],
+            'responsable_usuario_id' => $representanteId,
             'modalidad' => $data['modalidad'] ?? 'INDIVIDUAL',
             'material_estudio' => $data['material_estudio'] ?? null,
             'leccion_actual' => $data['leccion_actual'] ?? null,
@@ -390,12 +421,12 @@ final class EstudioBiblicoService
             ]);
             $this->estudioDAO->updateVisitaSeguimiento((int) $visitaSeleccionada['id'], $organizacionId, 'ESTUDIO_BIBLICO', $usuarioId);
         }
-        foreach ($responsableIds as $index => $responsableId) {
+        foreach ($responsableIds as $responsableId) {
             $this->estudioDAO->insertStudyResponsable([
                 'organizacion_id' => $organizacionId,
                 'estudio_id' => $id,
                 'responsable_usuario_id' => $responsableId,
-                'principal' => $index === 0 ? 1 : 0,
+                'principal' => $responsableId === $representanteId ? 1 : 0,
                 'vigente' => 1,
                 'creado_por' => $usuarioId,
                 'actualizado_por' => $usuarioId
@@ -508,7 +539,6 @@ final class EstudioBiblicoService
         if (
             AuthContext::esInstructorBiblico()
             && (int) $estudio->responsableUsuarioId !== AuthContext::getUsuarioId()
-            && !$this->estudioDAO->isResponsableAsignado($estudio->id, $estudio->organizacionId, AuthContext::getUsuarioId())
         ) {
             throw new OutOfBoundsException('Estudio biblico no encontrado.');
         }
@@ -543,6 +573,7 @@ final class EstudioBiblicoService
             'estado_general' => isset($filters['estado_general']) ? strtoupper(trim((string) $filters['estado_general'])) : '',
             'origen_clave' => isset($filters['origen_clave']) ? strtoupper(trim((string) $filters['origen_clave'])) : '',
             'responsable_usuario_id' => $this->toOptionalInt($filters['responsable_usuario_id'] ?? null),
+            'solo_responsable_principal' => !empty($filters['solo_responsable_principal']),
             'fecha_desde' => $this->toNullableDate($filters['fecha_desde'] ?? null),
             'fecha_hasta' => $this->toNullableDate($filters['fecha_hasta'] ?? null)
         ];
@@ -557,6 +588,7 @@ final class EstudioBiblicoService
         $normalizados = $this->normalizarFiltros($filters);
         if (AuthContext::esInstructorBiblico()) {
             $normalizados['responsable_usuario_id'] = AuthContext::getUsuarioId();
+            $normalizados['solo_responsable_principal'] = true;
         }
 
         return $normalizados;
