@@ -189,6 +189,8 @@ Migraciones relevantes:
 - `migracion_04042026_campanas_tipo_otro.sql`
 - `migracion_04052026_estudios_biblicos_instructores.sql`
 - `migracion_05052026_estudios_biblicos_multiples_visitas_instructores.sql`
+- `migracion_20052026_juntas_tipo_presencial_virtual.sql`
+- `migracion_21052026_juntas_estado_por_comenzar.sql`
 
 Tablas/conceptos nuevos que otro agente debe considerar:
 
@@ -198,6 +200,7 @@ Tablas/conceptos nuevos que otro agente debe considerar:
 - `estudio_biblico_visitas`: relacion multiple entre estudio y visitas.
 - `estudio_biblico_responsables`: relacion multiple entre estudio e instructores responsables.
 - `seguimiento_tareas` y `auditoria_eventos`: trazabilidad compartida entre modulos.
+- `juntas_iglesia`, `junta_puntos_agenda`, `junta_votaciones`: juntas, agenda y votos.
 
 Reglas actuales para `Estudios Biblicos`:
 
@@ -208,3 +211,13 @@ Reglas actuales para `Estudios Biblicos`:
 - cada instructor registra su propia sesion/asistencia;
 - periodos vencidos se justifican y periodos futuros no se registran ni justifican;
 - todo debe conservar `organizacion_id`.
+
+Reglas actuales para `Juntas de Iglesia`:
+
+- tipos de junta vigentes: `PRESENCIAL`, `VIRTUAL`;
+- estados de junta vigentes: `POR_COMENZAR`, `EN_PROCESO`, `CERRADA`, `APROBADA`, `ARCHIVADA`;
+- juntas futuras se guardan como `POR_COMENZAR`;
+- juntas del dia se guardan como `EN_PROCESO`;
+- solo se puede sesionar/cerrar una junta en su fecha de inicio;
+- cambios de puntos asociados a sesion y votaciones se bloquean fuera de la fecha de inicio;
+- juntas presenciales no se duplican en una misma fecha; juntas virtuales pueden repetirse.

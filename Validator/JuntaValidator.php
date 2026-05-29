@@ -20,7 +20,8 @@ final class JuntaValidator
             'observaciones_generales' => $data['observaciones_generales'] ?? null,
             'resumen_general' => $data['resumen_general'] ?? null,
             'quorum_texto' => $data['quorum_texto'] ?? null,
-            'junta_anterior_id' => $data['junta_anterior_id'] ?? null
+            'junta_anterior_id' => $data['junta_anterior_id'] ?? null,
+            'puntos' => $data['puntos'] ?? null
         ];
     }
 

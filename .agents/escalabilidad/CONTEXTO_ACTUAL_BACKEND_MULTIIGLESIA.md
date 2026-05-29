@@ -238,6 +238,39 @@
   - `migracion_04052026_estudios_biblicos_instructores.sql`
   - `migracion_05052026_estudios_biblicos_multiples_visitas_instructores.sql`
 
+### Juntas de Iglesia
+
+- Endpoints vigentes:
+  - `GET /juntas-iglesia`
+  - `GET /juntas-iglesia/dashboard`
+  - `GET /juntas-iglesia/pendientes`
+  - `GET /juntas-iglesia/{id}`
+  - `POST /juntas-iglesia`
+  - `PUT /juntas-iglesia/{id}`
+  - `DELETE /juntas-iglesia/{id}`
+  - `POST /juntas-iglesia/{id}/puntos`
+  - `PUT /juntas-iglesia/puntos/{id}`
+  - `POST /juntas-iglesia/puntos/{id}/votaciones`
+  - `PUT /juntas-iglesia/votaciones/{id}`
+- Estados de junta vigentes:
+  - `POR_COMENZAR`
+  - `EN_PROCESO`
+  - `CERRADA`
+  - `APROBADA`
+  - `ARCHIVADA`
+- Reglas backend vigentes:
+  - `JuntaService` resuelve estado por fecha al crear/editar;
+  - fecha futura => `POR_COMENZAR`;
+  - fecha de hoy => `EN_PROCESO`;
+  - `CERRADA` solo se acepta al sesionar/cerrar en la fecha de inicio;
+  - votos, postergaciones y cambios de estado de punto propios de sesion se bloquean si la junta no es de hoy;
+  - se usa zona `America/Costa_Rica` para comparar fecha operativa;
+  - presencial no puede duplicarse en una misma fecha; virtual si puede repetirse.
+- Migraciones relacionadas:
+  - `migracion_20052026_juntas_tipo_presencial_virtual.sql`
+  - `migracion_21052026_juntas_estado_por_comenzar.sql`
+- La migracion `migracion_21052026_juntas_estado_por_comenzar.sql` ya fue aplicada en la BD local.
+
 ### Archivos backend clave
 
 - `Services/EstudioBiblicoService.php`
@@ -250,4 +283,9 @@
 - `Services/UsuarioService.php`
 - `Modelo/Usuario/UsuarioDAO.php`
 - `Middleware/RoleMiddleware.php`
+- `Services/JuntaService.php`
+- `Modelo/Junta/JuntaDAO.php`
+- `Validator/JuntaValidator.php`
+- `Controller/JuntaController.php`
+- `Router/JuntaRoutes.php`
 

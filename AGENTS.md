@@ -75,7 +75,7 @@ Si otro chat recibe "ponte al tanto" o "continua desde donde quedamos", debe lee
 Estado real del trabajo:
 
 - `Campanas` esta estable para esta etapa y aporta visitas compartidas para Estudios Biblicos.
-- `Estudios Biblicos` es el modulo activo actual y ya soporta:
+- `Estudios Biblicos` fue el tramo activo anterior y ya soporta:
   - rol `INSTRUCTOR_BIBLICO`;
   - CRUD de instructores como usuarios reales;
   - asignacion multiple de visitas e instructores;
@@ -83,8 +83,17 @@ Estado real del trabajo:
   - sesiones registradas por instructor responsable;
   - justificacion de faltas por periodo;
   - estados de estudio: `ASIGNADO`, `EN_PROCESO`, `PAUSADO`, `FINALIZADO`.
+- `Juntas de Iglesia` es el tramo activo mas reciente (2026-05-29).
+  - Endpoints base: `/juntas-iglesia`, `/juntas-iglesia/dashboard`, `/juntas-iglesia/pendientes`, puntos y votaciones.
+  - Estados de junta vigentes: `POR_COMENZAR`, `EN_PROCESO`, `CERRADA`, `APROBADA`, `ARCHIVADA`.
+  - `JuntaService` resuelve automaticamente el estado segun fecha: futuro => `POR_COMENZAR`, hoy => `EN_PROCESO`, cierre => `CERRADA`.
+  - Solo se puede sesionar una junta en su fecha de inicio. Backend bloquea votos, postergaciones/cambios de puntos de sesion y cierre fuera de esa fecha.
+  - Nueva migracion: `migracion_21052026_juntas_estado_por_comenzar.sql`; ya fue aplicada en la BD local `iglesia_asistencia`.
+  - Tambien existe `migracion_20052026_juntas_tipo_presencial_virtual.sql` para tipos `PRESENCIAL`/`VIRTUAL`.
 - Migraciones relacionadas:
   - `migracion_04052026_estudios_biblicos_instructores.sql`
   - `migracion_05052026_estudios_biblicos_multiples_visitas_instructores.sql`
+  - `migracion_20052026_juntas_tipo_presencial_virtual.sql`
+  - `migracion_21052026_juntas_estado_por_comenzar.sql`
 - Cualquier cambio debe conservar aislamiento por `organizacion_id` y sincronizar contrato con frontend.
 

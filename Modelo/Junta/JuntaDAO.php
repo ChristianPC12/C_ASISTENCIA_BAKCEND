@@ -18,6 +18,23 @@ final class JuntaDAO
         $this->pdo = Conexion::getConexion();
     }
 
+    public function beginTransaction(): void
+    {
+        $this->pdo->beginTransaction();
+    }
+
+    public function commit(): void
+    {
+        $this->pdo->commit();
+    }
+
+    public function rollBack(): void
+    {
+        if ($this->pdo->inTransaction()) {
+            $this->pdo->rollBack();
+        }
+    }
+
     /**
      * @param array<string, mixed> $filters
      * @return array<int, array<string, mixed>>
@@ -128,6 +145,30 @@ final class JuntaDAO
         return $row === false ? null : JuntaMapper::fromRow($row);
     }
 
+    public function existeJuntaPresencialEnFecha(int $organizacionId, string $fecha, ?int $excluirId = null): bool
+    {
+        $sql = 'SELECT COUNT(*)
+                FROM juntas_iglesia
+                WHERE organizacion_id = :organizacion_id
+                  AND fecha = :fecha
+                  AND tipo IN ("PRESENCIAL", "ORDINARIA", "EXTRAORDINARIA", "SEGUIMIENTO", "CONTINUACION")
+                  AND eliminado_en IS NULL';
+        $params = [
+            ':organizacion_id' => $organizacionId,
+            ':fecha' => $fecha
+        ];
+
+        if ($excluirId !== null) {
+            $sql .= ' AND id <> :excluir_id';
+            $params[':excluir_id'] = $excluirId;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
     /** @param array<string, mixed> $data */
     public function insert(array $data): int
     {
@@ -209,6 +250,32 @@ final class JuntaDAO
             ':organizacion_id' => $organizacionId,
             ':usuario_id' => $usuarioId
         ]);
+    }
+
+    public function hardDelete(int $id, int $organizacionId): bool
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM juntas_iglesia
+            WHERE id = :id AND organizacion_id = :organizacion_id');
+
+        return $stmt->execute([
+            ':id' => $id,
+            ':organizacion_id' => $organizacionId
+        ]);
+    }
+
+    public function countAgendaItems(int $juntaId, int $organizacionId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*)
+            FROM junta_puntos_agenda
+            WHERE junta_id = :junta_id
+              AND organizacion_id = :organizacion_id
+              AND eliminado_en IS NULL');
+        $stmt->execute([
+            ':junta_id' => $juntaId,
+            ':organizacion_id' => $organizacionId
+        ]);
+
+        return (int) $stmt->fetchColumn();
     }
 
     /**

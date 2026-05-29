@@ -6,6 +6,18 @@ declare(strict_types=1);
  */
 final class JuntaService
 {
+    private const TIPOS_JUNTA = ['PRESENCIAL', 'VIRTUAL'];
+    private const ESTADOS_JUNTA = ['POR_COMENZAR', 'BORRADOR', 'EN_PROCESO', 'CERRADA', 'APROBADA', 'ARCHIVADA'];
+    private const ESTADOS_JUNTA_TERMINALES = ['CERRADA', 'APROBADA', 'ARCHIVADA'];
+    private const ESTADOS_PUNTO_SESION = ['DISCUTIDO', 'VOTADO', 'APROBADO', 'RECHAZADO', 'POSPUESTO', 'TRASLADADO', 'EJECUTADO', 'RESUELTO_WHATSAPP'];
+    private const TIPOS_JUNTA_LEGACY = [
+        'ORDINARIA' => 'PRESENCIAL',
+        'EXTRAORDINARIA' => 'PRESENCIAL',
+        'SEGUIMIENTO' => 'PRESENCIAL',
+        'CONTINUACION' => 'PRESENCIAL',
+        'WHATSAPP' => 'VIRTUAL'
+    ];
+
     private JuntaDAO $juntaDAO;
     private AuditoriaService $auditoriaService;
 
@@ -71,8 +83,22 @@ final class JuntaService
     public function crear(array $data, int $usuarioId, string $actorNombre): array
     {
         $organizacionId = AuthContext::getOrganizacionId();
+        $puntos = $this->normalizarPuntosEntrada($data['puntos'] ?? null);
+        if ($puntos === []) {
+            throw new InvalidArgumentException('Debe registrar al menos un punto para crear la junta.');
+        }
+
         $payload = $this->normalizarJunta($data, $organizacionId, $usuarioId);
-        $id = $this->juntaDAO->insert($payload);
+        $this->juntaDAO->beginTransaction();
+        try {
+            $id = $this->juntaDAO->insert($payload);
+            $this->insertarPuntosDeJunta($id, $puntos, $organizacionId, $usuarioId, true);
+            $this->juntaDAO->commit();
+        } catch (\Throwable $e) {
+            $this->juntaDAO->rollBack();
+            throw $e;
+        }
+
         $item = $this->obtener($id);
         $this->auditoriaService->registrar('JUNTAS', 'JUNTA', $id, 'CREAR', 'Junta creada.', $organizacionId, $usuarioId, $actorNombre, null, $item);
         return $item;
@@ -86,10 +112,27 @@ final class JuntaService
         if ($existente === null) {
             throw new OutOfBoundsException('Junta no encontrada.');
         }
+        if ($existente->fecha < $this->fechaHoy()) {
+            throw new InvalidArgumentException('No se puede editar una junta cuya fecha de inicio ya paso.');
+        }
 
         $antes = JuntaMapper::toArray($existente);
+        $puntos = $this->normalizarPuntosEntrada($data['puntos'] ?? null);
+        if ($this->juntaDAO->countAgendaItems($id, $organizacionId) + count($puntos) === 0) {
+            throw new InvalidArgumentException('Debe registrar al menos un punto para guardar la junta.');
+        }
+
         $payload = $this->normalizarJunta($data, $organizacionId, $usuarioId, $existente);
-        $this->juntaDAO->update($id, $payload, $organizacionId);
+        $this->juntaDAO->beginTransaction();
+        try {
+            $this->juntaDAO->update($id, $payload, $organizacionId);
+            $this->insertarPuntosDeJunta($id, $puntos, $organizacionId, $usuarioId, false);
+            $this->juntaDAO->commit();
+        } catch (\Throwable $e) {
+            $this->juntaDAO->rollBack();
+            throw $e;
+        }
+
         $item = $this->obtener($id);
         $this->auditoriaService->registrar('JUNTAS', 'JUNTA', $id, 'ACTUALIZAR', 'Junta actualizada.', $organizacionId, $usuarioId, $actorNombre, $antes, $item);
         return $item;
@@ -102,8 +145,9 @@ final class JuntaService
         if ($existente === null) {
             throw new OutOfBoundsException('Junta no encontrada.');
         }
-        $this->juntaDAO->softDelete($id, $organizacionId, $usuarioId);
-        $this->auditoriaService->registrar('JUNTAS', 'JUNTA', $id, 'ARCHIVAR', 'Junta archivada.', $organizacionId, $usuarioId, $actorNombre, JuntaMapper::toArray($existente), null);
+        $antes = JuntaMapper::toArray($existente);
+        $this->juntaDAO->hardDelete($id, $organizacionId);
+        $this->auditoriaService->registrar('JUNTAS', 'JUNTA', $id, 'ELIMINAR', 'Junta eliminada.', $organizacionId, $usuarioId, $actorNombre, $antes, null);
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
@@ -128,6 +172,11 @@ final class JuntaService
         }
 
         $payload = $this->normalizarPunto($data, (int) $existente['junta_id'], $organizacionId, $usuarioId, $existente);
+        $estadoAnterior = (string) ($existente['estado'] ?? '');
+        $estadoNuevo = (string) ($payload['estado'] ?? '');
+        if ($estadoNuevo !== $estadoAnterior && in_array($estadoNuevo, self::ESTADOS_PUNTO_SESION, true)) {
+            $this->assertJuntaPuedeSesionarse((int) $existente['junta_id'], $organizacionId);
+        }
         $this->assertNumeroOrdenDisponible((int) $existente['junta_id'], (int) $payload['numero_orden'], $puntoId);
         $this->juntaDAO->updatePoint($puntoId, $payload, $organizacionId);
         $item = $this->buscarPorIdEnLista($this->juntaDAO->listAgendaItems((int) $existente['junta_id'], $organizacionId), $puntoId);
@@ -143,6 +192,7 @@ final class JuntaService
         if ($punto === null) {
             throw new OutOfBoundsException('Punto de agenda no encontrado.');
         }
+        $this->assertJuntaPuedeSesionarse((int) $punto['junta_id'], $organizacionId);
 
         $payload = $this->normalizarVotacion($data, $puntoId, $organizacionId, $usuarioId);
         $id = $this->juntaDAO->insertVote($payload);
@@ -164,6 +214,7 @@ final class JuntaService
         if ($punto === null) {
             throw new OutOfBoundsException('Punto de agenda no encontrado.');
         }
+        $this->assertJuntaPuedeSesionarse((int) $punto['junta_id'], $organizacionId);
 
         $payload = $this->normalizarVotacion($data, (int) $existente['punto_agenda_id'], $organizacionId, $usuarioId, $existente);
         $this->juntaDAO->updateVote($votacionId, $payload, $organizacionId);
@@ -187,8 +238,8 @@ final class JuntaService
     {
         return [
             'q' => $this->toNullableText($filters['q'] ?? null, 120, true) ?? '',
-            'estado' => $this->toEnum($filters['estado'] ?? null, ['BORRADOR', 'EN_PROCESO', 'CERRADA', 'APROBADA', 'ARCHIVADA'], true),
-            'tipo' => $this->toEnum($filters['tipo'] ?? null, ['ORDINARIA', 'EXTRAORDINARIA', 'SEGUIMIENTO', 'WHATSAPP', 'CONTINUACION'], true),
+            'estado' => $this->toEnum($filters['estado'] ?? null, self::ESTADOS_JUNTA, true),
+            'tipo' => $this->toEnumTipoJunta($filters['tipo'] ?? null, true),
             'departamento_origen' => $this->toNullableText($filters['departamento_origen'] ?? null, 120, true) ?? '',
             'responsable_usuario_id' => $this->toNullableInt($filters['responsable_usuario_id'] ?? null),
             'fecha_desde' => $this->toNullableDate($filters['fecha_desde'] ?? null),
@@ -197,14 +248,64 @@ final class JuntaService
         ];
     }
 
+    /** @return array<int, array<string, mixed>> */
+    private function normalizarPuntosEntrada(mixed $puntos): array
+    {
+        if ($puntos === null || $puntos === '') {
+            return [];
+        }
+        if (!is_array($puntos)) {
+            throw new InvalidArgumentException('Los puntos de la junta tienen un formato invalido.');
+        }
+
+        $normalizados = [];
+        foreach ($puntos as $punto) {
+            if (!is_array($punto)) {
+                throw new InvalidArgumentException('Los puntos de la junta tienen un formato invalido.');
+            }
+            $normalizados[] = $punto;
+        }
+
+        return $normalizados;
+    }
+
+    /** @param array<int, array<string, mixed>> $puntos */
+    private function insertarPuntosDeJunta(int $juntaId, array $puntos, int $organizacionId, int $usuarioId, bool $respetarOrden): void
+    {
+        foreach (array_values($puntos) as $index => $punto) {
+            if ($respetarOrden) {
+                $punto['numero_orden'] = $index + 1;
+            } else {
+                unset($punto['numero_orden']);
+            }
+
+            $payload = $this->normalizarPunto($punto, $juntaId, $organizacionId, $usuarioId);
+            $this->assertNumeroOrdenDisponible($juntaId, (int) $payload['numero_orden']);
+            $this->juntaDAO->insertPoint($payload);
+        }
+    }
+
     /** @param array<string, mixed> $data @return array<string, mixed> */
     private function normalizarJunta(array $data, int $organizacionId, int $usuarioId, ?JuntaDTO $existente = null): array
     {
         $fecha = $this->toRequiredDate($data['fecha'] ?? null, 'La fecha de la junta es obligatoria.');
+        if (($existente === null || $fecha !== $existente->fecha) && $fecha < $this->fechaHoy()) {
+            throw new InvalidArgumentException('La fecha de inicio no puede ser anterior al dia de hoy.');
+        }
         $horaInicio = $this->toNullableTime($data['hora_inicio'] ?? null);
+        if ($horaInicio === null) {
+            throw new InvalidArgumentException('La hora de inicio es obligatoria.');
+        }
         $horaFin = $this->toNullableTime($data['hora_fin'] ?? null);
+        if ($horaFin === null) {
+            throw new InvalidArgumentException('La hora final es obligatoria.');
+        }
         if ($horaInicio !== null && $horaFin !== null && strcmp($horaFin, $horaInicio) < 0) {
             throw new InvalidArgumentException('La hora final no puede ser menor que la hora inicial.');
+        }
+        $tipo = $this->toEnumTipoJunta($data['tipo'] ?? null, false);
+        if ($tipo === 'PRESENCIAL' && $this->juntaDAO->existeJuntaPresencialEnFecha($organizacionId, $fecha, $existente?->id)) {
+            throw new InvalidArgumentException('Ya existe una junta presencial registrada para esa fecha. Las juntas virtuales si pueden repetirse el mismo dia.');
         }
 
         $juntaAnteriorId = $this->toNullableInt($data['junta_anterior_id'] ?? null);
@@ -218,22 +319,62 @@ final class JuntaService
             }
         }
 
+        $quorum = $this->toNullableInt($data['quorum_texto'] ?? null);
+        if ($quorum === null || $quorum <= 0) {
+            throw new InvalidArgumentException('El quorum es obligatorio y debe ser mayor que cero.');
+        }
+
+        $estadoEntrada = $data['estado'] ?? ($existente !== null ? $existente->estado : 'EN_PROCESO');
+        $estado = $this->resolverEstadoJunta($fecha, $estadoEntrada, $existente);
+
         return [
             'organizacion_id' => $organizacionId,
             'fecha' => $fecha,
             'hora_inicio' => $horaInicio,
             'hora_fin' => $horaFin,
-            'tipo' => $this->toEnum($data['tipo'] ?? null, ['ORDINARIA', 'EXTRAORDINARIA', 'SEGUIMIENTO', 'WHATSAPP', 'CONTINUACION'], false, 'Debe indicar un tipo valido de junta.'),
-            'moderador' => $this->toNullableText($data['moderador'] ?? null, 160),
-            'secretario' => $this->toNullableText($data['secretario'] ?? null, 160),
-            'estado' => $this->toEnum($data['estado'] ?? null, ['BORRADOR', 'EN_PROCESO', 'CERRADA', 'APROBADA', 'ARCHIVADA'], false, 'Debe indicar un estado valido de junta.'),
-            'observaciones_generales' => $this->toNullableText($data['observaciones_generales'] ?? null, 5000),
-            'resumen_general' => $this->toNullableText($data['resumen_general'] ?? null, 5000),
-            'quorum_texto' => $this->toNullableText($data['quorum_texto'] ?? null, 180),
+            'tipo' => $tipo,
+            'moderador' => $this->toRequiredText($data['moderador'] ?? null, 160, 'Debe indicar el moderador de la junta.'),
+            'secretario' => $this->toRequiredText($data['secretario'] ?? null, 160, 'Debe indicar la secretaria de la junta.'),
+            'estado' => $estado,
+            'observaciones_generales' => $this->toNullableTextarea($data['observaciones_generales'] ?? null, 5000, 2),
+            'resumen_general' => $this->toNullableTextarea($data['resumen_general'] ?? null, 5000, 2),
+            'quorum_texto' => $quorum === null ? null : (string) $quorum,
             'junta_anterior_id' => $juntaAnteriorId,
             'creado_por' => $usuarioId,
             'actualizado_por' => $usuarioId
         ];
+    }
+
+    private function resolverEstadoJunta(string $fecha, mixed $estadoEntrada, ?JuntaDTO $existente = null): string
+    {
+        $estado = $this->toEnum($estadoEntrada, self::ESTADOS_JUNTA, false, 'Debe indicar un estado valido de junta.');
+        $hoy = $this->fechaHoy();
+
+        if ($estado === 'CERRADA' && $fecha !== $hoy && ($existente === null || $existente->estado !== 'CERRADA')) {
+            throw new InvalidArgumentException('Solo se puede sesionar o cerrar una junta en su fecha de inicio.');
+        }
+
+        if (in_array($estado, self::ESTADOS_JUNTA_TERMINALES, true)) {
+            return $estado;
+        }
+
+        return $fecha > $hoy ? 'POR_COMENZAR' : 'EN_PROCESO';
+    }
+
+    private function assertJuntaPuedeSesionarse(int $juntaId, int $organizacionId): void
+    {
+        $junta = $this->juntaDAO->findById($juntaId, $organizacionId);
+        if ($junta === null) {
+            throw new OutOfBoundsException('Junta no encontrada.');
+        }
+        if ($junta->fecha !== $this->fechaHoy()) {
+            throw new InvalidArgumentException('Solo se puede sesionar una junta en su fecha de inicio.');
+        }
+    }
+
+    private function fechaHoy(): string
+    {
+        return (new \DateTimeImmutable('now', new \DateTimeZone('America/Costa_Rica')))->format('Y-m-d');
     }
 
     /** @param array<string, mixed> $data @param array<string, mixed>|null $existente @return array<string, mixed> */
@@ -259,8 +400,8 @@ final class JuntaService
             'organizacion_id' => $organizacionId,
             'junta_id' => $juntaId,
             'numero_orden' => $numeroOrden,
-            'titulo' => $this->toRequiredText($data['titulo'] ?? null, 180, 'Debe indicar el titulo del punto.'),
-            'departamento_origen' => $this->toNullableText($data['departamento_origen'] ?? null, 120),
+            'titulo' => $this->toRequiredText($data['titulo'] ?? null, 65, 'Debe indicar el titulo del punto.'),
+            'departamento_origen' => $this->toRequiredText($data['departamento_origen'] ?? null, 120, 'Debe indicar el departamento representado.'),
             'presentado_por' => $this->toNullableText($data['presentado_por'] ?? null, 160),
             'tipo_punto' => $this->toEnum($data['tipo_punto'] ?? null, ['INFORMATIVO', 'VOTACION', 'SEGUIMIENTO', 'PENDIENTE_ANTERIOR', 'APROBADO_WHATSAPP', 'NUEVO'], false, 'Debe indicar un tipo valido de punto.'),
             'descripcion_base' => $this->toNullableText($data['descripcion_base'] ?? null, 5000),
@@ -373,7 +514,7 @@ final class JuntaService
                 $resumen['resueltos_whatsapp']++;
             }
             if (!empty($punto['fecha_limite']) && $estado !== 'EJECUTADO' && $estado !== 'APROBADO' && $estado !== 'RECHAZADO' && $estado !== 'RESUELTO_WHATSAPP') {
-                if (strtotime((string) $punto['fecha_limite']) < strtotime(date('Y-m-d'))) {
+                if (strtotime((string) $punto['fecha_limite']) < strtotime($this->fechaHoy())) {
                     $resumen['vencidos']++;
                 }
             }
@@ -497,6 +638,17 @@ final class JuntaService
         return $text;
     }
 
+    private function toNullableTextarea(mixed $value, int $max, int $maxSaltosLinea): ?string
+    {
+        $text = $this->toNullableText($value, $max);
+        if ($text === null) {
+            return null;
+        }
+
+        $lineas = explode("\n", str_replace(["\r\n", "\r"], "\n", $text));
+        return implode("\n", array_slice($lineas, 0, $maxSaltosLinea + 1));
+    }
+
     private function toNullableInt(mixed $value): ?int
     {
         if ($value === null || $value === '') {
@@ -565,6 +717,24 @@ final class JuntaService
             return $text;
         }
         throw new InvalidArgumentException('Formato de fecha y hora invalido.');
+    }
+
+    private function toEnumTipoJunta(mixed $value, bool $nullable = false): ?string
+    {
+        if ($value === null || $value === '') {
+            if ($nullable) {
+                return null;
+            }
+            throw new InvalidArgumentException('Debe indicar un tipo valido de junta.');
+        }
+
+        $text = strtoupper(trim((string) $value));
+        $text = self::TIPOS_JUNTA_LEGACY[$text] ?? $text;
+        if (!in_array($text, self::TIPOS_JUNTA, true)) {
+            throw new InvalidArgumentException('Debe indicar un tipo valido de junta.');
+        }
+
+        return $text;
     }
 
     /** @param array<int, string> $allowed */

@@ -484,7 +484,7 @@ CREATE TABLE IF NOT EXISTS `juntas_iglesia` (
   `fecha` date NOT NULL,
   `hora_inicio` time DEFAULT NULL,
   `hora_fin` time DEFAULT NULL,
-  `tipo` varchar(25) NOT NULL DEFAULT 'ORDINARIA',
+  `tipo` varchar(25) NOT NULL DEFAULT 'PRESENCIAL',
   `moderador` varchar(160) DEFAULT NULL,
   `secretario` varchar(160) DEFAULT NULL,
   `estado` varchar(20) NOT NULL DEFAULT 'BORRADOR',
@@ -505,9 +505,9 @@ CREATE TABLE IF NOT EXISTS `juntas_iglesia` (
   CONSTRAINT `fk_juntas_iglesia_anterior`
     FOREIGN KEY (`junta_anterior_id`) REFERENCES `juntas_iglesia` (`id`) ON DELETE SET NULL,
   CONSTRAINT `chk_juntas_iglesia_tipo`
-    CHECK (`tipo` IN ('ORDINARIA', 'EXTRAORDINARIA', 'SEGUIMIENTO', 'WHATSAPP', 'CONTINUACION')),
+    CHECK (`tipo` IN ('PRESENCIAL', 'VIRTUAL')),
   CONSTRAINT `chk_juntas_iglesia_estado`
-    CHECK (`estado` IN ('BORRADOR', 'EN_PROCESO', 'CERRADA', 'APROBADA', 'ARCHIVADA'))
+    CHECK (`estado` IN ('POR_COMENZAR', 'BORRADOR', 'EN_PROCESO', 'CERRADA', 'APROBADA', 'ARCHIVADA'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `junta_puntos_agenda` (

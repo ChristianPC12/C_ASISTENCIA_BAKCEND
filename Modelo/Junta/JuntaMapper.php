@@ -15,7 +15,7 @@ final class JuntaMapper
             (string) $row['fecha'],
             isset($row['hora_inicio']) ? (string) $row['hora_inicio'] : null,
             isset($row['hora_fin']) ? (string) $row['hora_fin'] : null,
-            (string) ($row['tipo'] ?? 'ORDINARIA'),
+            (string) ($row['tipo'] ?? 'PRESENCIAL'),
             isset($row['moderador']) ? (string) $row['moderador'] : null,
             isset($row['secretario']) ? (string) $row['secretario'] : null,
             (string) ($row['estado'] ?? 'BORRADOR'),

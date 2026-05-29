@@ -97,7 +97,9 @@ final class JuntaController
     {
         try {
             $this->service->eliminar($id, AuthContext::getUsuarioId(), AuthContext::getNombre());
-            JsonResponse::sendV2Success(200, 'Junta archivada correctamente.');
+            JsonResponse::sendV2Success(200, 'Junta eliminada correctamente.');
+        } catch (InvalidArgumentException $e) {
+            JsonResponse::sendV2Error(400, 'VALIDATION_ERROR', $e->getMessage());
         } catch (OutOfBoundsException $e) {
             JsonResponse::sendV2Error(404, 'RESOURCE_NOT_FOUND', $e->getMessage());
         } catch (\Throwable $e) {
